@@ -45,12 +45,6 @@ export const originValidator = (req, res, next) => {
         fullOrigin: origin
       };
 
-      logger.info('Origin validated successfully', {
-        origin,
-        ip: req.ip,
-        path: req.path
-      });
-
       next();
     } catch (urlError) {
       logger.warn('Invalid origin URL format', {
@@ -82,19 +76,99 @@ export const originValidator = (req, res, next) => {
 
 export const strictOriginValidator = async (req, res, next) => {
   try {
-    const { applicationUrl } = req;
+    const { applicationUrl, originInfo } = req;
     
+    if (!applicationUrl || !originInfo) {
+      logger.warn('Missing origin data in strict validation', {
+        applicationUrl,
+        hasOriginInfo: !!originInfo,
+        ip: req.ip,
+        path: req.path
+      });
+      
+      return res.status(400).json({
+        success: false,
+        error: 'MISSING_ORIGIN_DATA',
+        message: 'Origin validation data is missing'
+      });
+    }
 
-    logger.info('Strict origin validation', {
-      applicationUrl,
-      ip: req.ip,
-      path: req.path
-    });
+    const urlObj = new URL(applicationUrl);
     
+    // Check for suspicious patterns
+    const suspiciousPatterns = [
+      /data:/i,
+      /javascript:/i,
+      /vbscript:/i,
+      /file:/i,
+      /ftp:/i
+    ];
+    
+    if (suspiciousPatterns.some(pattern => pattern.test(applicationUrl))) {
+      logger.warn('Suspicious origin protocol detected', {
+        applicationUrl,
+        ip: req.ip,
+        path: req.path
+      });
+      
+      return res.status(403).json({
+        success: false,
+        error: 'SUSPICIOUS_ORIGIN',
+        message: 'Origin protocol not allowed'
+      });
+    }
+    
+    // Validate protocol (only HTTP/HTTPS)
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      logger.warn('Invalid protocol in origin', {
+        protocol: urlObj.protocol,
+        applicationUrl,
+        ip: req.ip
+      });
+      
+      return res.status(403).json({
+        success: false,
+        error: 'INVALID_PROTOCOL',
+        message: 'Only HTTP and HTTPS protocols are allowed'
+      });
+    }
+    
+    // In production, enforce HTTPS
+    if (process.env.NODE_ENV === 'production' && urlObj.protocol !== 'https:') {
+      logger.warn('Non-HTTPS origin in production', {
+        applicationUrl,
+        ip: req.ip
+      });
+      
+      return res.status(403).json({
+        success: false,
+        error: 'HTTPS_REQUIRED',
+        message: 'HTTPS is required in production'
+      });
+    }
+    
+    if (process.env.NODE_ENV === 'production') {
+      const ipPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+      if (ipPattern.test(urlObj.hostname)) {
+        logger.warn('IP address origin in production', {
+          hostname: urlObj.hostname,
+          applicationUrl,
+          ip: req.ip
+        });
+        
+        return res.status(403).json({
+          success: false,
+          error: 'IP_ORIGIN_NOT_ALLOWED',
+          message: 'IP address origins are not allowed in production'
+        });
+      }
+    }
+
     next();
   } catch (error) {
     logger.error('Strict origin validation error', {
       error: error.message,
+      stack: error.stack,
       ip: req.ip
     });
     

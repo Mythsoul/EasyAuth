@@ -26,7 +26,6 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    logger.info('CORS origin request', { origin });
     callback(null, true);
   },
   credentials: true,
@@ -48,6 +47,7 @@ app.use(limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
+
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
@@ -78,13 +78,10 @@ app.use('*', (req, res) => {
 async function startServer() {
   try {
    await connectDatabase();
-    logger.info('Database connected successfully');
     
     app.listen(PORT, () => {
 
-      logger.info(`Auth Server running on port ${PORT}`);
-      logger.info(` API Base URL: http://localhost:${PORT}${apiPrefix}`);
-      logger.info(` Environment: ${process.env.NODE_ENV}`);
+      logger.info(`Auth Server running on port ${PORT} (${process.env.NODE_ENV})`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

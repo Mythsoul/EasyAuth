@@ -1,23 +1,14 @@
 import AuthService from "../models/Auth.js";
 import { logger } from "../utils/logger.js";
 import { normalizeUrl } from "../middleware/originValidator.js";
-import { application } from "express";
 
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const applicationUrl = normalizeUrl(req.applicationUrl);
-    
-    logger.info('Login attempt', {
-      email,
-      applicationUrl,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
+    const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
     
     const auth = new AuthService.Auth({ email, password, applicationUrl });
     const result = await auth.login();
-    console.log(result)
     if (!result.success) {
       logger.warn('Login failed', {
         email,
@@ -32,13 +23,6 @@ export const login = async (req, res) => {
         message: result.message
       });
     }
-    
-    logger.info('Login successful', {
-      email,
-      applicationUrl,
-      userId: result.data?.id,
-      ip: req.ip
-    });
     
     return res.json({
       success: true,
@@ -63,20 +47,12 @@ export const login = async (req, res) => {
 export const register = async (req, res) => {
   try {
     const { email, password, username } = req.body;
-    const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || application);
-    console.log(req.body, applicationUrl);
-    logger.info('Registration attempt', {
-      email,
-      username,
-      applicationUrl , 
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
+    const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
 
     const auth = new AuthService.Auth({ email, password, username, applicationUrl });
+    
     const result = await auth.register();
-
-    if (!result.success) {
+    if (result.success == false) {
       logger.warn('Registration failed', {
         email,
         username,
@@ -91,14 +67,6 @@ export const register = async (req, res) => {
         message: result.message
       });
     }
-    
-    logger.info('Registration successful', {
-      email,
-      username,
-      applicationUrl,
-      userId: result.data?.id,
-      ip: req.ip
-    });
     
     return res.status(201).json({
       success: true,

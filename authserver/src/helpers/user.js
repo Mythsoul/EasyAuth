@@ -6,14 +6,13 @@ export class Auth {
        constructor (formData) { 
         this.formData = formData;
        } 
-       async FindUserByEmail(formData) { 
+       async DoesUserExist() { 
         try {
             const user = await prisma.user.findUnique({
-                where: { email }
+                where: { email : this.formData.email }, 
             });
-            return user;
+            return user ? true : false ;
         } catch (error) {
-            logger.error(`Error finding user by email: ${email}`, error);
             throw error;
         }
        } 

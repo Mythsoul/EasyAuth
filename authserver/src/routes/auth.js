@@ -7,7 +7,6 @@ const router = express.Router();
 
 router.use('/auth/*', originValidator);
 
-// Auth routes with origin validation
 router.post('/auth/register', strictOriginValidator, register);
 router.post('/auth/login', strictOriginValidator, login);
 

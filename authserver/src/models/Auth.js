@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { PasswordHelper } from '../helpers/password.js';
 import { generateToken } from '../helpers/jwtHelper.js';
-
+import { MailHelper } from '../helpers/mailHelper.js';
 const prisma = new PrismaClient();
 
 class Auth {
@@ -47,6 +47,14 @@ class Auth {
                     message: passwordStrength.message
                 };
             }
+            const IsvalidEmail = await MailHelper.checkEmailFormat(email); 
+            if (!IsvalidEmail) { 
+                return {
+                    success: false,
+                    message: 'Invalid email format'
+                };
+            } 
+
             // Create user
             const user = await prisma.user.create({
                 data: {
@@ -68,18 +76,13 @@ class Auth {
             });
 
             // Generate JWT token
-          token = generateToken(user);
+         const token = generateToken(user);
             if (!token) {
                 return {
                     success: false,
                     message: 'Token generation failed'
                 };
             }
-            logger.info('User registered successfully', {
-                userId: user.id,
-                email: user.email,
-                applicationUrl: user.applicationUrl
-            });
 
             return {
                 success: true,
@@ -95,13 +98,12 @@ class Auth {
                 stack: error.stack,
                 formData: { ...this.formData, password: '[REDACTED]' }
             });
-
             return {
                 success: false,
-                message: 'Registration failed due to server error'
+                message: 'Registration failed: ' + error.message
             };
         }
-    }
+    }   
 
     async login() {
         try {
@@ -161,11 +163,6 @@ class Auth {
                 };
             }
 
-            logger.info('User logged in successfully', {
-                userId: user.id,
-                email: user.email,
-                applicationUrl: user.applicationUrl
-            });
 
             return {
                 success: true,
