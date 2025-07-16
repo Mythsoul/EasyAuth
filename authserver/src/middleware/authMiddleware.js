@@ -1,10 +1,22 @@
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
+import { parseCookie } from '../utils/cookieUtils.js';
+
+const extractToken = (req) => {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && parts[0] === 'Bearer') {
+      return parts[1];
+    }
+  }
+  
+  return parseCookie(req, 'token');
+};
 
 export const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
+  const token = extractToken(req);
   if (!token) {
     return res.status(401).json({
       success: false,
@@ -41,8 +53,7 @@ export const authenticateToken = (req, res, next) => {
 };
 
 export const optionalAuth = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = extractToken(req);
 
   if (!token) {
     req.user = null;

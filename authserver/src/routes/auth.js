@@ -18,7 +18,7 @@ router.get('/auth/me', authenticateToken, (req, res) => {
     data: {
       userId: req.user.userId,
       email: req.user.email,
-      applicationUrl: req.user.applicationUrl,
+      username: req.user.username,
       role: req.user.role
     }
   });
@@ -31,7 +31,8 @@ router.post('/auth/verify-token', authenticateToken, (req, res) => {
     data: {
       userId: req.user.userId,
       email: req.user.email,
-      applicationUrl: req.user.applicationUrl,
+      username: req.user.username,
+
       role: req.user.role
     }
   });
