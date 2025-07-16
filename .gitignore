@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*/.env
+
+# Lock files
+package-lock.json
+bun.lock
+*/package-lock.json
+*/bun.lock
+
+# Database
+prisma/
+*/prisma/
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Coverage
+coverage/
+*.lcov
+
+
+bun.lock
