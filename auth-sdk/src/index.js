@@ -2,8 +2,8 @@ import axios from 'axios';
 import { sessionManager } from './session.js';
 
 const client = axios.create({
-  baseURL: process.env.NODE_ENV === 'production' ? 'https://your-production-url.com/api' : 'http://localhost:3000/api/v1', 
-    withCredentials: true, 
+  baseURL: 'http://localhost:3000/api/v1',
+  withCredentials: true,
 });
 
 // Helper function to get token from cookies
