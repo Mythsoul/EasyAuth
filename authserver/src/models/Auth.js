@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { PasswordHelper } from '../helpers/password.js';
-import { generateToken } from '../helpers/jwtHelper.js';
+import { generateToken, generateRefreshToken } from '../helpers/jwtHelper.js';
 import { MailHelper } from '../helpers/mailHelper.js';
 const prisma = new PrismaClient();
 
@@ -77,6 +77,22 @@ class Auth {
 
             // Generate JWT token
          const token = generateToken(user);
+         const refreshToken = generateRefreshToken();
+            if (!token || !refreshToken) {
+                return {
+                    success: false,
+                    message: 'Token generation failed'
+                };
+            }
+            // Store refresh token in database
+            await prisma.refreshToken.create({
+                data: {
+                    token: refreshToken,
+                    userId: user.id,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+                }
+            });
+            
             if (!token) {
                 return {
                     success: false,
@@ -154,15 +170,25 @@ class Auth {
                 data: { lastLogin: new Date() }
             });
 
-            // Generate JWT token
-           const token = generateToken(user);
-            if (!token) {
+            // Generate access token and refresh token
+            const accessToken = generateToken(user);
+            const refreshToken = generateRefreshToken();
+            
+            if (!accessToken || !refreshToken) {
                 return {
                     success: false,
                     message: 'Token generation failed'
                 };
             }
 
+            // Store refresh token in database
+            await prisma.refreshToken.create({
+                data: {
+                    token: refreshToken,
+                    userId: user.id,
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+                }
+            });
 
             return {
                 success: true,
@@ -177,7 +203,8 @@ class Auth {
                         emailVerified: user.emailVerified,
                         lastLogin: user.lastLogin
                     },
-                    token
+                    token: accessToken,
+                    refreshToken
                 }
             };
         } catch (error) {
@@ -194,11 +221,111 @@ class Auth {
         }
     }
 
-    async logout() {
-        return {
-            success: true,
-            message: 'Logout successful'
-        };
+    async logout(userId, token) {
+        try {
+            // Clear any existing sessions for this user
+            await prisma.session.deleteMany({
+                where: {
+                    userId: userId
+                }
+            });
+
+            // Clear refresh tokens for this user
+            await prisma.refreshToken.deleteMany({
+                where: {
+                    userId: userId
+                }
+            });
+
+            logger.info('User logged out successfully', {
+                userId,
+                timestamp: new Date()
+            });
+
+            return {
+                success: true,
+                message: 'Logout successful'
+            };
+        } catch (error) {
+            logger.error('Logout error', {
+                error: error.message,
+                stack: error.stack,
+                userId
+            });
+            return {
+                success: false,
+                message: 'Logout failed due to server error'
+            };
+        }
+    }
+
+    async refreshToken(refreshToken) {
+        try {
+            if (!refreshToken) {
+                return {
+                    success: false,
+                    message: 'Refresh token is required'
+                };
+            }
+
+            // Find refresh token in database
+            const storedToken = await prisma.refreshToken.findUnique({
+                where: { token: refreshToken },
+                include: { user: true }
+            });
+
+            if (!storedToken) {
+                return {
+                    success: false,
+                    message: 'Invalid refresh token'
+                };
+            }
+
+            // Check if token is expired
+            if (storedToken.expiresAt < new Date()) {
+                // Remove expired token
+                await prisma.refreshToken.delete({
+                    where: { id: storedToken.id }
+                });
+                return {
+                    success: false,
+                    message: 'Refresh token expired'
+                };
+            }
+
+            // Generate new access token
+            const newAccessToken = generateToken(storedToken.user);
+            
+            if (!newAccessToken) {
+                return {
+                    success: false,
+                    message: 'Token generation failed'
+                };
+            }
+
+            return {
+                success: true,
+                message: 'Token refreshed successfully',
+                data: {
+                    token: newAccessToken,
+                    user: {
+                        id: storedToken.user.id,
+                        email: storedToken.user.email,
+                        username: storedToken.user.username,
+                        role: storedToken.user.role
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('Refresh token error', {
+                error: error.message,
+                stack: error.stack
+            });
+            return {
+                success: false,
+                message: 'Token refresh failed due to server error'
+            };
+        }
     }
 }
 

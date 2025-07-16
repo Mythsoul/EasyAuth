@@ -1,5 +1,5 @@
 import express from "express"; 
-import { login, register } from "../controllers/AuthController.js";
+import { login, register, logout, refreshToken } from "../controllers/AuthController.js";
 import { originValidator, strictOriginValidator } from "../middleware/originValidator.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 
@@ -10,6 +10,7 @@ router.use('/auth/*', originValidator);
 // Public routes
 router.post('/auth/register', strictOriginValidator, register);
 router.post('/auth/login', strictOriginValidator, login);
+router.post('/auth/refresh-token', refreshToken);
 
 // Protected routes
 router.get('/auth/me', authenticateToken, (req, res) => {
@@ -32,18 +33,11 @@ router.post('/auth/verify-token', authenticateToken, (req, res) => {
       userId: req.user.userId,
       email: req.user.email,
       username: req.user.username,
-
       role: req.user.role
     }
   });
 });
 
-router.post('/auth/logout', authenticateToken, (req, res) => {
-  
-  res.json({
-    success: true,
-    message: 'Logout successful'
-  });
-});
+router.post('/auth/logout', authenticateToken, logout);
 
 export const authRoutes = router;
