@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    
+  username         String?   
+  firstName        String?
+  lastName         String?
+  password         String
+  emailVerified    Boolean   @default(false)
+  emailVerifyToken String?
+  profilePicture   String?
+  role             Role      @default(USER)
+  isActive         Boolean   @default(true)
+  lastLogin        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Application association
+  applicationUrl String  // Store the website URL/domain
+
+  // Password reset functionality
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+
+  // Refresh tokens for JWT
+  refreshTokens RefreshToken[]
+
+  // OAuth providers
+  oauthProviders OAuthProvider[]
+
+  // User sessions
+  sessions Session[]
+
+  // Unique email per application URL (same email can exist across different domains)
+  @@unique([email, applicationUrl])
+  @@unique([username, applicationUrl])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("refresh_tokens")
+}
+
+model OAuthProvider {
+  id         String @id @default(cuid())
+  provider   String // 'google', 'github', 'facebook', etc.
+  providerId String // The ID from the OAuth provider
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@map("oauth_providers")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}

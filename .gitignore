@@ -15,8 +15,12 @@ bun.lock
 */bun.lock
 
 # Database
-prisma/
-*/prisma/
+prisma/generated/
+*/prisma/generated/
+*/prisma/migrations/
+.env
+*.db
+*.sqlite
 
 # Build outputs
 dist/
