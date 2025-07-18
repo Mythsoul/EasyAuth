@@ -560,6 +560,196 @@ class Auth {
             };
         }
     }
+
+    async forgotPassword() {
+        try {
+            const { email, applicationUrl } = this.formData;
+
+            if (!email || !applicationUrl) {
+                return {
+                    success: false,
+                    message: 'Email and application URL are required'
+                };
+            }
+
+
+            const user = await prisma.user.findUnique({
+                where: {
+                    email_applicationUrl: {
+                        email: email,
+                        applicationUrl: applicationUrl
+                    }
+                }
+            });
+
+            if (!user) {
+                return {
+                    success: true,
+                    message: 'If an account with this email exists, you will receive a password reset link shortly.'
+                };
+            }
+
+            if (!user.isActive) {
+                return {
+                    success: false,
+                    message: 'Account is deactivated'
+                };
+            }
+           
+            
+            const resetToken = MailHelper.generatePasswordResetToken();
+            
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    passwordResetToken: resetToken,
+                    passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+                }
+            });
+
+            const emailResult = await MailHelper.sendPasswordResetEmail(
+                user.email,
+                resetToken,
+                applicationUrl
+            );
+
+            if (!emailResult.success) {
+                logger.error('Failed to send password reset email', {
+                    userId: user.id,
+                    email: user.email,
+                    error: emailResult.message
+                });
+                return {
+                    success: false,
+                    message: emailResult.message
+                };
+            }
+
+            logger.info('Password reset email sent', {
+                userId: user.id,
+                email: user.email,
+                applicationUrl: user.applicationUrl
+            });
+
+            return {
+                success: true,
+                message: 'Password reset instructions have been sent to your email address.'
+            };
+        } catch (error) {
+            logger.error('Forgot password error', {
+                error: error.message,
+                stack: error.stack,
+                formData: { ...this.formData, emailConfig: '[REDACTED]' }
+            });
+            return {
+                success: false,
+                message: 'Failed to process forgot password request due to server error'
+            };
+        }
+    }
+
+    async resetPassword() {
+        try {
+            const { token, password, applicationUrl } = this.formData;
+            
+            if (!token || !password) {
+                return {
+                    success: false,
+                    message: 'Reset token and new password are required'
+                };
+            }
+
+            // Validate password strength
+            const passwordStrength = PasswordHelper.checkPasswordStrength(password);
+            if (!passwordStrength.success) {
+                return {
+                    success: false,
+                    message: passwordStrength.message
+                };
+            }
+
+            const user = await prisma.user.findFirst({
+                where: {
+                    passwordResetToken: token,
+                    passwordResetExpiresAt: {
+                        gt: new Date()
+                    }
+                }
+            });
+
+            if (!user) {
+                return {
+                    success: false,
+                    message: 'Invalid or expired reset token'
+                };
+            }
+
+            if (!user.isActive) {
+                return {
+                    success: false,
+                    message: 'Account is deactivated'
+                };
+            }
+
+            // Hash the new password
+            const hashedPassword = await PasswordHelper.hashPassword(password);
+
+            // Update user's password and clear reset token
+            const updatedUser = await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    password: hashedPassword,
+                    passwordResetToken: null,
+                    passwordResetExpiresAt: null,
+                    updatedAt: new Date()
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    username: true,
+                    applicationUrl: true,
+                    role: true,
+                    emailVerified: true
+                }
+            });
+
+            await prisma.refreshToken.deleteMany({
+                where: {
+                    userId: user.id
+                }
+            });
+
+            await prisma.session.deleteMany({
+                where: {
+                    userId: user.id
+                }
+            });
+
+            logger.info('Password reset successful', {
+                userId: updatedUser.id,
+                email: updatedUser.email,
+                applicationUrl: updatedUser.applicationUrl
+            });
+
+            return {
+                success: true,
+                message: 'Password has been reset successfully. Please log in with your new password.',
+                data: {
+                    user: updatedUser
+                }
+            };
+        } catch (error) {
+            logger.error('Reset password error', {
+                error: error.message,
+                stack: error.stack,
+                formData: { ...this.formData, password: '[REDACTED]' }
+            });
+            return {
+                success: false,
+                message: 'Failed to reset password due to server error'
+            };
+        }
+    }
 }
 
 export const AuthService = { Auth };

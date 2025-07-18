@@ -17,6 +17,7 @@
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
     "db:seed": "bun run prisma/seed.js",
+    "db:cleanup": "node src/utils/cleanup.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {

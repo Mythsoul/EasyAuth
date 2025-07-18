@@ -296,4 +296,123 @@ export const verifyEmailPage = async (req, res) => {
   }
 };
 
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
+    
+    if (!email ) {
+      return res.status(400).json({
+        success: false,
+          error: 'MISSING_REQUIRED_FIELDS',
+          message: 'Email is required'
+      });
+    }
+    
+    const auth = new AuthService.Auth({ email, applicationUrl });
+    const result = await auth.forgotPassword();
+    
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'FORGOT_PASSWORD_FAILED',
+        message: result.message
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: result.message
+    });
+  } catch (error) {
+    logger.error('Forgot password error', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+    
+    return res.status(500).json({
+      success: false,
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'An error occurred while processing forgot password request'
+    });
+  }
+};
 
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
+    
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'MISSING_REQUIRED_FIELDS',
+        message: 'Reset token and new password are required'
+      });
+    }
+    
+    const auth = new AuthService.Auth({ token, password, applicationUrl });
+    const result = await auth.resetPassword();
+    
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'RESET_PASSWORD_FAILED',
+        message: result.message
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: result.message,
+      data: result.data
+    });
+  } catch (error) {
+    logger.error('Reset password error', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+    
+    return res.status(500).json({
+      success: false,
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'An error occurred while resetting password'
+    });
+  }
+};
+
+export const resetPasswordPage = async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const crypto = await import('crypto');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    
+    // Generate a random nonce for the script
+    const nonce = crypto.randomBytes(16).toString('base64');
+    
+    // Set Content Security Policy with the nonce
+    res.setHeader('Content-Security-Policy', `script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';`);
+    
+    const htmlPath = path.join(__dirname, '../views/reset-password.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    
+    // Replace the nonce placeholder with the actual nonce
+    html = html.replace('{{NONCE}}', nonce);
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    logger.error('Error serving reset password page', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).send('Internal Server Error');
+  }
+};

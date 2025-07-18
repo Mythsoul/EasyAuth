@@ -1,5 +1,5 @@
 import express from "express"; 
-import { login, register, logout, refreshToken, verifyEmail, resendVerificationEmail, verifyEmailPage } from "../controllers/AuthController.js";
+import { login, register, logout, refreshToken, verifyEmail, resendVerificationEmail, verifyEmailPage, forgotPassword, resetPassword, resetPasswordPage } from "../controllers/AuthController.js";
 import { originValidator, strictOriginValidator } from "../middleware/originValidator.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 
@@ -16,6 +16,11 @@ router.post('/auth/refresh-token', refreshToken);
 router.get('/verify-email', verifyEmailPage); 
 router.post('/auth/verify-email', strictOriginValidator, verifyEmail);
 router.post('/auth/resend-verification-email', strictOriginValidator, resendVerificationEmail);
+
+// Password reset routes
+router.get('/reset-password', resetPasswordPage);
+router.post('/auth/forgot-password', strictOriginValidator, forgotPassword);
+router.post('/auth/reset-password', strictOriginValidator, resetPassword);
 
 // Protected routes
 router.get('/auth/me', authenticateToken, (req, res) => {
