@@ -5,6 +5,7 @@ import { normalizeUrl } from "../middleware/originValidator.js";
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    
     const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
     
     const auth = new AuthService.Auth({ email, password, applicationUrl });
@@ -47,7 +48,8 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { email, password, username, emailConfig } = req.body;
+    const { email, password, username, emailConfig } = req.body; 
+
     const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
 
     const auth = new AuthService.Auth({ email, password, username, applicationUrl, emailConfig });
@@ -224,11 +226,11 @@ export const resendVerificationEmail = async (req, res) => {
     const { email, emailConfig } = req.body;
     const applicationUrl = normalizeUrl(req.originInfo?.fullOrigin || req.applicationUrl);
     
-    if (!email || !emailConfig) {
+    if (!email) {
       return res.status(400).json({
         success: false,
         error: 'MISSING_REQUIRED_FIELDS',
-        message: 'Email and email configuration are required'
+        message: 'Email is required'
       });
     }
     

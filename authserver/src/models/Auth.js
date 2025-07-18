@@ -23,6 +23,7 @@ class Auth {
                 };
             }
 
+            
             const existingUser = await prisma.user.findUnique({
                 where: {
                     email_applicationUrl: {
@@ -210,7 +211,7 @@ class Auth {
                 };
             }
 
-            const isPasswordValid = PasswordHelper.comparePasswords(password, user.password); 
+            const isPasswordValid = await PasswordHelper.comparePasswords(password, user.password);
             if (!isPasswordValid) {
                 return {
                     success: false,
@@ -472,23 +473,18 @@ class Auth {
 
     async resendVerificationEmail() {
         try {
-            const { email, applicationUrl, emailConfig } = this.formData;
-            
-            if (!email || !applicationUrl || !emailConfig) {
+            const { email, applicationUrl } = this.formData;
+
+            if (!email || !applicationUrl) {
                 return {
                     success: false,
-                    message: 'Email, application URL, and email configuration are required'
+                    message: 'Email and application URL are required'
                 };
             }
 
             // Validate email configuration
-            const configValidation = MailHelper.validateClientEmailConfig(emailConfig);
-            if (!configValidation.valid) {
-                return {
-                    success: false,
-                    message: configValidation.message
-                };
-            }
+
+    
 
             const user = await prisma.user.findUnique({
                 where: {
@@ -525,7 +521,6 @@ class Auth {
             });
 
             const emailResult = await MailHelper.sendVerificationEmail(
-                emailConfig,
                 user.email,
                 newToken,
                 applicationUrl

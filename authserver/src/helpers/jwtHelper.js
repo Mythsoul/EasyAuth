@@ -18,7 +18,10 @@ export const generateToken = (userData) => {
 
 export const generateRefreshToken = () => {
   return jwt.sign(
-    { type: 'refresh' },
+    { 
+      type: 'refresh',
+      jti: Math.random().toString(36).substr(2, 9)
+    },
     process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
