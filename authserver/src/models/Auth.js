@@ -14,7 +14,7 @@ class Auth {
 
     async register() {
         try {
-            const { email, password, username, applicationUrl } = this.formData;
+            const { email, password, username, applicationUrl, emailConfig } = this.formData;
 
             if (!email || !password || !applicationUrl) {
                 return {
@@ -55,6 +55,24 @@ class Auth {
                 };
             } 
 
+            // Handle email verification if configured
+            let emailVerifyToken = null;
+            let shouldSendEmail = false;
+            
+            if (emailConfig && emailConfig.sendVerificationEmail) {
+                // Validate client email configuration
+                const configValidation = MailHelper.validateClientEmailConfig(emailConfig);
+                if (!configValidation.valid) {
+                    return {
+                        success: false,
+                        message: configValidation.message
+                    };
+                }
+                
+                emailVerifyToken = MailHelper.generateVerificationToken();
+                shouldSendEmail = true;
+            }
+
             // Create user
             const user = await prisma.user.create({
                 data: {
@@ -62,7 +80,10 @@ class Auth {
                     password: hashedPassword,
                     username: username || null,
                     applicationUrl,
-                    role: 'USER'
+                    role: 'USER',
+                    emailVerifyToken: emailVerifyToken,
+                    emailVerifyTokenExpiresAt: shouldSendEmail ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null, // 24 hours
+                    emailVerified: !shouldSendEmail // If not sending email, consider it verified by default
                 },
                 select: {
                     id: true,
@@ -71,7 +92,8 @@ class Auth {
                     applicationUrl: true,
                     role: true,
                     createdAt: true,
-                    emailVerified: true
+                    emailVerified: true,
+                    emailVerifyToken: true
                 }
             });
 
@@ -100,13 +122,45 @@ class Auth {
                 };
             }
 
+            let emailResult = null;
+            if (shouldSendEmail) {
+                emailResult = await MailHelper.sendVerificationEmail(
+                    emailConfig,
+                    user.email,
+                    user.emailVerifyToken,
+                    applicationUrl
+                );
+            }
+
+            // Prepare response data
+            const responseData = {
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    username: user.username,
+                    applicationUrl: user.applicationUrl,
+                    role: user.role,
+                    emailVerified: user.emailVerified,
+                    createdAt: user.createdAt
+                },
+                token
+            };
+
+            // Add email info if verification email was sent
+            if (shouldSendEmail) {
+                responseData.emailVerification = {
+                    sent: emailResult?.success || false,
+                    message: emailResult?.message || 'Email sending status unknown',
+                    required: emailConfig.requireEmailVerification || false
+                };
+            }
+
             return {
                 success: true,
-                message: 'Registration successful',
-                data: {
-                    user,
-                    token
-                }
+                message: shouldSendEmail 
+                    ? 'Registration successful. Please check your email for verification instructions.'
+                    : 'Registration successful',
+                data: responseData
             };
         } catch (error) {
             logger.error('Registration error', {
@@ -161,6 +215,19 @@ class Auth {
                 return {
                     success: false,
                     message: 'Invalid credentials'
+                };
+            }
+
+            // Check if email verification is required and user is not verified
+            if (!user.emailVerified && user.emailVerifyToken) {
+                return {
+                    success: false,
+                    error: 'EMAIL_NOT_VERIFIED',
+                    message: 'Please verify your email address before logging in',
+                    data: {
+                        emailVerified: false,
+                        canResendEmail: true
+                    }
                 };
             }
 
@@ -324,6 +391,172 @@ class Auth {
             return {
                 success: false,
                 message: 'Token refresh failed due to server error'
+            };
+        }
+    }
+
+    async verifyEmail(token) {
+        try {
+            if (!token) {
+                return {
+                    success: false,
+                    message: 'Verification token is required'
+                };
+            }
+
+            const user = await prisma.user.findFirst({
+                where: {
+                    emailVerifyToken: token,
+                    emailVerified: false
+                }
+            });
+
+            if (!user) {
+                return {
+                    success: false,
+                    message: 'Invalid or expired verification token'
+                };
+            }
+
+            // Check if token is expired
+            if (user.emailVerifyTokenExpiresAt && user.emailVerifyTokenExpiresAt < new Date()) {
+                return {
+                    success: false,
+                    message: 'Verification token has expired. Please request a new one.'
+                };
+            }
+
+            // Update user to mark email as verified
+            const updatedUser = await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    emailVerified: true,
+                    emailVerifyToken: null, 
+                    emailVerifyTokenExpiresAt: null, 
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    username: true,
+                    applicationUrl: true,
+                    role: true,
+                    emailVerified: true
+                }
+            });
+
+            logger.info('Email verified successfully', {
+                userId: updatedUser.id,
+                email: updatedUser.email,
+                applicationUrl: updatedUser.applicationUrl
+            });
+
+            return {
+                success: true,
+                message: 'Email verified successfully',
+                data: {
+                    user: updatedUser
+                }
+            };
+        } catch (error) {
+            logger.error('Email verification error', {
+                error: error.message,
+                stack: error.stack,
+                token: token ? `${token.substring(0, 10)}...` : 'null'
+            });
+            return {
+                success: false,
+                message: 'Email verification failed due to server error'
+            };
+        }
+    }
+
+    async resendVerificationEmail() {
+        try {
+            const { email, applicationUrl, emailConfig } = this.formData;
+            
+            if (!email || !applicationUrl || !emailConfig) {
+                return {
+                    success: false,
+                    message: 'Email, application URL, and email configuration are required'
+                };
+            }
+
+            // Validate email configuration
+            const configValidation = MailHelper.validateClientEmailConfig(emailConfig);
+            if (!configValidation.valid) {
+                return {
+                    success: false,
+                    message: configValidation.message
+                };
+            }
+
+            const user = await prisma.user.findUnique({
+                where: {
+                    email_applicationUrl: {
+                        email: email,
+                        applicationUrl: applicationUrl
+                    }
+                }
+            });
+
+            if (!user) {
+                return {
+                    success: false,
+                    message: 'User not found'
+                };
+            }
+
+            if (user.emailVerified) {
+                return {
+                    success: false,
+                    message: 'Email is already verified'
+                };
+            }
+
+            // Generate new verification token
+            const newToken = MailHelper.generateVerificationToken();
+            
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    emailVerifyToken: newToken,
+                    emailVerifyTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+                }
+            });
+
+            const emailResult = await MailHelper.sendVerificationEmail(
+                emailConfig,
+                user.email,
+                newToken,
+                applicationUrl
+            );
+
+            if (!emailResult.success) {
+                return {
+                    success: false,
+                    message: emailResult.message
+                };
+            }
+
+            logger.info('Verification email resent', {
+                userId: user.id,
+                email: user.email,
+                applicationUrl: user.applicationUrl
+            });
+
+            return {
+                success: true,
+                message: 'Verification email sent successfully'
+            };
+        } catch (error) {
+            logger.error('Resend verification email error', {
+                error: error.message,
+                stack: error.stack,
+                formData: { ...this.formData, emailConfig: '[REDACTED]' }
+            });
+            return {
+                success: false,
+                message: 'Failed to resend verification email due to server error'
             };
         }
     }

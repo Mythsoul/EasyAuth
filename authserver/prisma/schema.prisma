@@ -21,6 +21,7 @@ model User {
   password         String
   emailVerified    Boolean   @default(false)
   emailVerifyToken String?
+  emailVerifyTokenExpiresAt DateTime?
   profilePicture   String?
   role             Role      @default(USER)
   isActive         Boolean   @default(true)
