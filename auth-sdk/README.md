@@ -1,17 +1,15 @@
 # EasyAuth SDK
 
-A simple, powerful authentication SDK for JavaScript applications. Connect to any authentication server with just a few lines of code.
+A simple, powerful authentication SDK for developers.
 
 ## Features
-
-- 🔐 **Complete Authentication** - Login, register, logout with JWT tokens
-- 📧 **Email Verification** - Built-in email verification system
-- 🔄 **Password Reset** - Server-handled forgot password functionality  
-- 🍪 **Secure Sessions** - HTTP-only cookie token storage
-- ⚛️ **React Hooks** - Built-in hooks for React applications
-- 🔄 **Auto Token Refresh** - Seamless token renewal
-- 🌐 **Hosted Service** - Uses the official EasyAuth server (no configuration needed)
-- 📱 **SSR Compatible** - Works with Next.js and other SSR frameworks
+- Uses EasyAuth server for authentication 
+- 🔐 **Complete Authentication** - Login, register, logout with JWT tokens (Automatically stores and manages tokens)
+- 📧 **Email Verification** - Uses the EasyAuth server's email verification system
+- 🔄 **Password Reset** - Server-handled forgot password functionality
+- 🔒 **Production Ready** - Built with security and performance in mind
+- 📦 **Easy Integration** - Just a few lines of code to get started
+- ⚛️ **React Hooks** - Built-in hooks for easy React integration
 
 ## Installation
 
@@ -19,7 +17,7 @@ A simple, powerful authentication SDK for JavaScript applications. Connect to an
 npm install easy.auth98
 ```
 
-## Quick Start
+# Please Visit Our [Documentation (coming Soon)]() for more details.
 
 ### Basic Authentication
 
@@ -135,27 +133,14 @@ const unsubscribe = events.on('session', (session, status) => {
 unsubscribe();
 ```
 
-## Configuration
 
-### Default (Recommended)
+### Configuration 
+
 ```javascript
 // No configuration needed - uses hosted EasyAuth service
 import { signIn, signUp } from 'easy.auth98';
 ```
 
-### Custom Server
-```javascript
-import { configure } from 'easy.auth98';
-
-// Use your own auth server
-configure({
-  baseURL: 'https://your-auth-server.com/api/v1'
-});
-```
-
-> 📖 **Open Source**: You can host your own auth server using our [open source backend](https://github.com/Mythsoul/Easyauth/tree/main/authserver)
-
-## API Reference
 
 ### Authentication Functions
 

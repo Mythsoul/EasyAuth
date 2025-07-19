@@ -19,7 +19,7 @@ __tests__/
 .babelrc*
 jest.config.js
 vitest.config.js
-
+bun.lock
 # Editor and IDE files
 .vscode/
 .idea/
