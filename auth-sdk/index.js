@@ -5,6 +5,14 @@ export {
   signOut, 
   getSession, 
   verifyToken,
+  resendVerificationEmail,
+  forgotPassword,
+  refreshToken,
+  isAuthenticated,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  debugTokens,
+  getConfig,
   sessionManager,
   events
 } from './src/index.js';

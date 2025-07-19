@@ -1,9 +1,25 @@
 import axios from "axios"; 
 import { sessionManager } from './session.js';
 
-const client = axios.create({
-  baseURL: 'https://easyauth-server.vercel.app/api/v1', 
+// Hardcoded configuration for the EasyAuth server
+const config = {
+  baseURL: 'https://easyauth-server.vercel.app/api/v1',
   withCredentials: true,
+  timeout: 10000, // 10 seconds
+  tokenCookies: {
+    access: 'easyauth_access_token',
+    refresh: 'easyauth_refresh_token'
+  },
+  tokenExpiry: {
+    access: 15 * 60, 
+    refresh: 7 * 24 * 60 * 60 
+  }
+};
+
+const client = axios.create({
+  baseURL: config.baseURL,
+  withCredentials: config.withCredentials,
+  timeout: config.timeout
 });
 
 // Token storage helpers - using secure cookies
@@ -100,7 +116,7 @@ async function refreshAccessToken() {
     
     // Create a separate axios instance for refresh token to avoid interceptor loop
     const refreshClient = axios.create({
-      baseURL: 'https://easyauth-server.vercel.app/api/v1',
+      baseURL: config.baseURL,
       withCredentials: false 
     });
     
@@ -161,7 +177,7 @@ client.interceptors.response.use(
 );
 
 // Login function 
-export async function signIn(email, password, applicationUrl = 'http://localhost:3000') {
+export async function signIn(email, password, applicationUrl = '') {
   try {
     sessionManager.setLoading(true);
     
@@ -210,10 +226,15 @@ export async function signIn(email, password, applicationUrl = 'http://localhost
   }
 }
 
-//  register function
-export async function signUp(email, password, username, applicationUrl = 'http://localhost:3000') {
+//  register function with optional email configuration
+export async function signUp(email, password, username, applicationUrl = '', emailConfig = null) {
   try {
-    const response = await client.post('/auth/register', { email, password, username, applicationUrl });
+    const requestBody = { email, password, username, applicationUrl };
+    if (emailConfig) {
+      requestBody.emailConfig = emailConfig;
+    }
+    
+    const response = await client.post('/auth/register', requestBody);
     
     if (response.data.success) {
       return {
@@ -225,14 +246,16 @@ export async function signUp(email, password, username, applicationUrl = 'http:/
       return {
         success: false,
         error: response.data.error || 'REGISTRATION_FAILED',
-        message: response.data.message || 'Registration failed'
+        message: response.data.message || 'Registration failed',
+        details: response.data.details // Include validation details
       };
     }
   } catch (error) {
     return {
       success: false,
       error: error.response?.data?.error || 'NETWORK_ERROR',
-      message: error.response?.data?.message || 'Registration failed'
+      message: error.response?.data?.message || 'Registration failed',
+      details: error.response?.data?.details // Include validation details
     };
   }
 }
@@ -311,8 +334,7 @@ export async function getSession() {
       return null;
     }
   } catch (error) {
-    // If it's a 401 error, the response interceptor will handle token refresh
-    // So we don't need to do anything special here
+
     sessionManager.clearSession();
     clearTokens();
     return null;
@@ -347,12 +369,10 @@ export async function refreshToken() {
   }
 }
 
-// Check if user is authenticated
 export function isAuthenticated() {
   const accessToken = getAccessToken();
   const refreshToken = getRefreshToken();
   
-  // User is authenticated if they have an access token OR a refresh token
   return !!(accessToken || refreshToken);
 }
 
@@ -365,6 +385,66 @@ export function getStoredAccessToken() {
 export function getStoredRefreshToken() {
   return getRefreshToken();
 }
+
+
+
+
+export async function resendVerificationEmail(email, applicationUrl = '', emailConfig = null) {
+  try {
+    const requestBody = { email, applicationUrl };
+    if (emailConfig) {
+      requestBody.emailConfig = emailConfig;
+    }
+    
+    const response = await client.post('/auth/resend-verification-email', requestBody);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data.error || 'RESEND_FAILED',
+        message: response.data.message || 'Failed to resend verification email'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error || 'NETWORK_ERROR',
+      message: error.response?.data?.message || 'Failed to resend verification email'
+    };
+  }
+}
+
+// Forgot password function
+export async function forgotPassword(email, applicationUrl = '') {
+  try {
+    const response = await client.post('/auth/forgot-password', { email, applicationUrl });
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data.error || 'FORGOT_PASSWORD_FAILED',
+        message: response.data.message || 'Failed to process forgot password request'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error || 'NETWORK_ERROR',
+      message: error.response?.data?.message || 'Failed to process forgot password request'
+    };
+  }
+}
+
 
 // Debug function to check token status
 export function debugTokens() {

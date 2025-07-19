@@ -1,7 +1,7 @@
 {
   "name": "easy.auth98",
-  "version": "3.2.1",
-  "description": "Easy Auth SDK a simple authentication ",
+  "version": "5.0.0",
+  "description": "EasyAuth SDK - Secure authentication as a service with enterprise self-hosting options",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -11,7 +11,16 @@
     "auth",
     "authentication",
     "session",
-    "easy auth"
+    "easy auth",
+    "email verification",
+    "password reset",
+    "jwt",
+    "oauth",
+    "security",
+    "login",
+    "signup",
+    "react",
+    "hooks"
   ],
   "author": "Mythsoul / Moon",
   "license": "ISC",
@@ -25,5 +34,8 @@
     "react": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
