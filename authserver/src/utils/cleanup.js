@@ -150,7 +150,6 @@ export const cleanupInactiveUsers = async (daysInactive = 90) => {
   }
 };
 
-// Run cleanup if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   const runCleanup = async () => {
     try {

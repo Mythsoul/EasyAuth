@@ -1,6 +1,25 @@
 import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger.js';
 
+// Helper function to format milliseconds into human-readable time
+const formatRetryTime = (resetTimeMs) => {
+  const now = Date.now();
+  const diffMs = resetTimeMs - now;
+  
+  if (diffMs <= 0) {
+    return '0 sec';
+  }
+  
+  const diffMinutes = Math.ceil(diffMs / (1000 * 60));
+  const diffSeconds = Math.ceil(diffMs / 1000);
+  
+  if (diffMinutes >= 1) {
+    return `${diffMinutes} min`;
+  } else {
+    return `${diffSeconds} sec`;
+  }
+};
+
 const applicationStats = new Map();
 
 const createKeyGenerator = (includeApplication = false) => {
@@ -41,13 +60,13 @@ const rateLimitHandler = (req, res) => {
     success: false,
     error: 'RATE_LIMIT_EXCEEDED',
     message: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.round(req.rateLimit.resetTime / 1000)
+    retryAfter: formatRetryTime(req.rateLimit.resetTime)
   });
 };
 
 // Global rate limiter
 export const globalRateLimit = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, 
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 50,
   keyGenerator: createKeyGenerator(false),
   handler: rateLimitHandler,
@@ -91,7 +110,7 @@ export const loginRateLimit = rateLimit({
       success: false,
       error: 'LOGIN_RATE_LIMIT_EXCEEDED',
       message: 'Too many login attempts from this IP. Please try again later.',
-      retryAfter: Math.round(req.rateLimit.resetTime / 1000)
+      retryAfter: formatRetryTime(req.rateLimit.resetTime)
     });
   },
   standardHeaders: true,

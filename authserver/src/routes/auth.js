@@ -1,5 +1,5 @@
 import express from "express"; 
-import { login, register, logout, refreshToken, verifyEmail, resendVerificationEmail, verifyEmailPage, forgotPassword, resetPassword, resetPasswordPage } from "../controllers/AuthController.js";
+import { login, register, logout, refreshToken, verifyEmail, resendVerificationEmail, verifyEmailPage, forgotPassword, resetPassword, resetPasswordPage, checkAuthStatus } from "../controllers/AuthController.js";
 import { originValidator, strictOriginValidator } from "../middleware/originValidator.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 import { validate, authSchemas } from "../middleware/validation.js";
@@ -13,6 +13,9 @@ router.use('/auth/*', originValidator);
 router.post('/auth/register', authRateLimit, strictOriginValidator, validate(authSchemas.register), register);
 router.post('/auth/login', loginRateLimit, strictOriginValidator, validate(authSchemas.login), login);
 router.post('/auth/refresh-token', authRateLimit, validate(authSchemas.refreshToken), refreshToken);
+
+// Auth status check (public - doesn't require authentication)
+router.get('/auth/status', authRateLimit, checkAuthStatus);
 
 // Email verification routes
 router.get('/verify-email', verifyEmailPage); 

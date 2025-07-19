@@ -1,12 +1,17 @@
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 
 export const generateToken = (userData) => {
+  // Generate unique JWT ID for token blacklisting
+  const jti = randomBytes(16).toString('hex');
+  
   const payload = {
     userId: userData.id,
     email: userData.email,
     username: userData.username,
     applicationUrl: userData.applicationUrl,
     role: userData.role,
+    jti: jti // Add unique JWT ID
   };
 
   const options = {

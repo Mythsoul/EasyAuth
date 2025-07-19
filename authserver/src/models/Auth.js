@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { PasswordHelper } from '../helpers/password.js';
 import { generateToken, generateRefreshToken } from '../helpers/jwtHelper.js';
 import { MailHelper } from '../helpers/mailHelper.js';
+import TokenBlacklistService from '../services/tokenBlacklist.js';
 const prisma = new PrismaClient();
 
 class Auth {
@@ -708,6 +709,7 @@ class Auth {
                 }
             });
 
+            // Clear all refresh tokens and sessions
             await prisma.refreshToken.deleteMany({
                 where: {
                     userId: user.id
@@ -720,7 +722,9 @@ class Auth {
                 }
             });
 
-            logger.info('Password reset successful', {
+            await TokenBlacklistService.blacklistAllUserTokens(user.id, 'password_reset');
+
+            logger.info('Password reset successful - all tokens invalidated', {
                 userId: updatedUser.id,
                 email: updatedUser.email,
                 applicationUrl: updatedUser.applicationUrl
