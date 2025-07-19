@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { connectDatabase, prisma } from '../src/config/database.js';
+import { connectDatabase, prisma, getDatabaseStatus } from '../src/config/database.js';
 import { authRoutes } from '../src/routes/auth.js';
 import { logger } from '../src/utils/logger.js';
 import { validateEnvConfig } from '../src/config/env.js';
@@ -69,12 +69,22 @@ app.get('/health', async (req, res) => {
     };
 
     // Check database connection
+    const dbStatus = getDatabaseStatus();
     try {
-      await prisma.$queryRaw`SELECT 1`;
-      health.database = 'connected';
-    } catch (dbError) {
-      health.database = 'disconnected';
+      if (dbStatus.isConnected) {
+        await prisma.$queryRaw`SELECT 1`;
+        health.database = 'connected';
+      } else if (dbStatus.isConnecting) {
+        health.database = 'connecting';
+        health.status = 'DEGRADED';
+      } else {
+        health.database = 'disconnected';
+        health.status = 'DEGRADED';
+      }
+    } catch (error) {
+      health.database = 'error';
       health.status = 'DEGRADED';
+      health.databaseError = error.message;
     }
 
     if (process.env.NODE_ENV === 'development') {
@@ -119,8 +129,10 @@ app.use(errorHandler);
 
 export default async (req, res) => {
   try {
+    // Initialize database connection if needed
     await initDatabase();
     
+    // Trigger cleanup for certain requests
     if (shouldTriggerCleanup(req)) {
       serverlessCleanup.checkAndCleanup().catch(error => {
         logger.error('Background cleanup failed:', error);
@@ -129,13 +141,23 @@ export default async (req, res) => {
     
     // Handle the request
     app(req, res);
+    
   } catch (error) {
-    logger.error('Vercel handler error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'INTERNAL_SERVER_ERROR',
-      message: 'Serverless function error'
+    logger.error('Vercel handler error:', {
+      error: error.message,
+      stack: error.stack,
+      url: req.url,
+      method: req.method
     });
+    
+    // Return appropriate error response
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_SERVER_ERROR',
+        message: 'Serverless function error'
+      });
+    }
   }
 };
 

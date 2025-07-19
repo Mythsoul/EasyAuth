@@ -54,7 +54,6 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     req.user = decoded;
-    console.log('Authenticated user:', req.user);
     next();
   } catch (error) {
     logger.warn('Invalid token attempt', {
@@ -89,7 +88,7 @@ export const optionalAuth = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-  } catch (error) {
+  } catch {
     req.user = null;
   }
 

@@ -21,7 +21,7 @@ export const originValidator = (req, res, next) => {
     }
 
     try {
-      const originUrl = new URL(origin);
+      const originUrl = new globalThis.URL(origin);
       
       if (process.env.NODE_ENV === 'production') {
         const isLocalhost = originUrl.hostname === 'localhost' || 
@@ -93,7 +93,7 @@ export const strictOriginValidator = async (req, res, next) => {
       });
     }
 
-    const urlObj = new URL(applicationUrl);
+    const urlObj = new globalThis.URL(applicationUrl);
     
     // Check for suspicious patterns
     const suspiciousPatterns = [
@@ -184,10 +184,10 @@ export const strictOriginValidator = async (req, res, next) => {
  */
 export const normalizeUrl = (url) => {
   try {
-    const urlObj = new URL(url);
+    const urlObj = new globalThis.URL(url);
     // Remove trailing slash and convert to lowercase
     return `${urlObj.protocol}//${urlObj.hostname.toLowerCase()}${urlObj.port ? `:${urlObj.port}` : ''}`;
-  } catch (error) {
+  } catch {
     return url;
   }
 };

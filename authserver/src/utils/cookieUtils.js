@@ -6,7 +6,7 @@ export const parseCookie = (req, cookieName) => {
   
   const cookies = cookieHeader.split(';');
   
-  for (let cookie of cookies) {
+  for (const cookie of cookies) {
     const trimmedCookie = cookie.trim();
     const equalIndex = trimmedCookie.indexOf('=');
     
@@ -34,7 +34,7 @@ export const parseAllCookies = (req) => {
   const cookies = {};
   const cookieArray = cookieHeader.split(';');
   
-  for (let cookie of cookieArray) {
+  for (const cookie of cookieArray) {
     const trimmedCookie = cookie.trim();
     const equalIndex = trimmedCookie.indexOf('=');
     
@@ -44,7 +44,7 @@ export const parseAllCookies = (req) => {
       
       try {
         cookies[name] = decodeURIComponent(value);
-      } catch (error) {
+      } catch {
         cookies[name] = value;
       }
     }

@@ -115,7 +115,7 @@ class MailHelper {
     // Extract app name from URL
     static extractAppNameFromUrl(url) {
         try {
-            const urlObj = new URL(url);
+            const urlObj = new globalThis.URL(url);
             const hostname = urlObj.hostname;
             
             // Remove common subdomains
@@ -127,7 +127,7 @@ class MailHelper {
             
             // Capitalize first letter
             return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1);
-        } catch (error) {
+        } catch {
             return 'Your App';
         }
     }

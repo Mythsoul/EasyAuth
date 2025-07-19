@@ -1,6 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { PasswordHelper } from '../helpers/password.js';
 import { generateToken, generateRefreshToken } from '../helpers/jwtHelper.js';
@@ -280,7 +278,7 @@ class Auth {
         }
     }
 
-    async logout(userId, token) {
+    async logout(userId) {
         try {
             // Clear any existing sessions for this user
             await prisma.session.deleteMany({
@@ -636,7 +634,7 @@ class Auth {
 
     async resetPassword() {
         try {
-            const { token, password, applicationUrl } = this.formData;
+            const { token, password } = this.formData;
             
             if (!token || !password) {
                 return {

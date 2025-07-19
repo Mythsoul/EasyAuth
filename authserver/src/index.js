@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { connectDatabase, prisma } from './config/database.js';
+import { connectDatabase, prisma, getDatabaseStatus } from './config/database.js';
 import { authRoutes } from './routes/auth.js';
 import { logger } from './utils/logger.js';
 import { validateEnvConfig } from './config/env.js';
@@ -14,7 +14,7 @@ import { cleanupScheduler } from './services/cleanupScheduler.js';
 dotenv.config();
 
 // Validate environment configuration
-const config = validateEnvConfig();
+validateEnvConfig();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -57,12 +57,22 @@ app.get('/health', async (req, res) => {
     };
 
     // Check database connection
+    const dbStatus = getDatabaseStatus();
     try {
-      await prisma.$queryRaw`SELECT 1`;
-      health.database = 'connected';
-    } catch (dbError) {
-      health.database = 'disconnected';
+      if (dbStatus.isConnected) {
+        await prisma.$queryRaw`SELECT 1`;
+        health.database = 'connected';
+      } else if (dbStatus.isConnecting) {
+        health.database = 'connecting';
+        health.status = 'DEGRADED';
+      } else {
+        health.database = 'disconnected';
+        health.status = 'DEGRADED';
+      }
+    } catch (error) {
+      health.database = 'error';
       health.status = 'DEGRADED';
+      health.databaseError = error.message;
     }
 
     // Include detailed info only in development
@@ -72,7 +82,6 @@ app.get('/health', async (req, res) => {
       health.uptime = process.uptime();
       health.cleanup = cleanupScheduler.getStatus();
       
-      // Memory usage (development only)
       const memUsage = process.memoryUsage();
       health.memory = {
         rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
@@ -80,10 +89,17 @@ app.get('/health', async (req, res) => {
         heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
       };
       
-      // CPU usage (development only)
-      health.cpu = {
-        loadAverage: process.platform !== 'win32' ? require('os').loadavg() : 'N/A on Windows'
-      };
+
+      if (process.platform !== 'win32') {
+        const os = await import('os');
+        health.cpu = {
+          loadAverage: os.loadavg()
+        };
+      } else {
+        health.cpu = {
+          loadAverage: 'N/A on Windows'
+        };
+      }
     }
 
     const statusCode = health.status === 'OK' ? 200 : 503;
@@ -110,17 +126,45 @@ app.use(errorHandler);
 
 async function startServer() {
   try {
-   await connectDatabase();
+    // Connect to database first
+    logger.info('Starting authentication server...');
+    await connectDatabase();
     
-    app.listen(PORT, () => {
-      logger.info(`Auth Server running on port ${PORT} (${process.env.NODE_ENV})`);
+    // Start the HTTP server
+    const server = app.listen(PORT, () => {
+      logger.info(`🚀 Auth Server running on port ${PORT} (${process.env.NODE_ENV})`);
       
       // Start automated cleanup scheduler
       cleanupScheduler.start();
     });
+    
+    // Handle server errors
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`Port ${PORT} is already in use`);
+      } else {
+        logger.error('Server error:', error);
+      }
+      process.exit(1);
+    });
+    
+    process.server = server;
+    
   } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
+    logger.error('Failed to start server:', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Try to connect again after 5 seconds
+    if (error.message.includes('database') || error.message.includes('connection')) {
+      logger.info('Will retry database connection in 5 seconds...');
+      globalThis.setTimeout(() => {
+        startServer();
+      }, 5000);
+    } else {
+      process.exit(1);
+    }
   }
 }
 

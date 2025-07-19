@@ -25,7 +25,7 @@ class EmailConfig {
             });
 
             // Verify connection
-            this.transporter.verify((error, success) => {
+            this.transporter.verify((error) => {
                 if (error) {            
                     logger.error('Email transporter verification failed', { error: error.message });
                 } else {
@@ -51,7 +51,6 @@ class EmailConfig {
         return this.transporter !== null;
     }
 
-    // Get server email configuration
     static get fromEmail() {
         return process.env.SMTP_FROM;
     }

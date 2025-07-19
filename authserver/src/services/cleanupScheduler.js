@@ -1,4 +1,4 @@
-import { cleanupExpiredTokens, cleanupInactiveUsers } from '../utils/cleanup.js';
+import { cleanupExpiredTokens } from '../utils/cleanup.js';
 import { cleanupApplicationStats } from '../middleware/rateLimiter.js';
 import { logger } from '../utils/logger.js';
 
@@ -49,7 +49,7 @@ class CleanupScheduler {
     
     // Clear all intervals
     for (const [taskName, intervalId] of this.intervals) {
-      clearInterval(intervalId);
+      globalThis.clearInterval(intervalId);
       logger.info(`Stopped cleanup task: ${taskName}`);
     }
 
@@ -68,7 +68,7 @@ class CleanupScheduler {
     }
 
     // Schedule recurring execution
-    const intervalId = setInterval(() => {
+    const intervalId = globalThis.setInterval(() => {
       this.safeExecute(taskName, cleanupFunction.bind(this));
     }, intervalMs);
 

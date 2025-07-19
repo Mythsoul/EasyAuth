@@ -101,7 +101,7 @@ class DomainValidator {
       const emailRegex = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
       const match = email.match(emailRegex);
       return match ? match[1].toLowerCase() : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
