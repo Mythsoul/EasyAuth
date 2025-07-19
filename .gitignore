@@ -53,3 +53,12 @@ coverage/
 bun.lock
 
 test
+docs
+tests
+
+
+.docker*
+Docker* 
+docker*
+
+.env.ver*

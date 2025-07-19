@@ -1,0 +1,50 @@
+# Development files
+.gitignore
+.env*
+
+# Documentation (except README.md)
+docs/
+examples/
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Development tools
+.eslintrc*
+.prettier*
+.babelrc*
+jest.config.js
+vitest.config.js
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (should be installed separately)
+node_modules/
+
+# Coverage reports
+coverage/
+
+# Build artifacts that shouldn't be published
+dist/
+build/
+*.tgz
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local development files
+playground/
+demo/
