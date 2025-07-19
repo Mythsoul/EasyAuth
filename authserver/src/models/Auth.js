@@ -278,7 +278,7 @@ class Auth {
         }
     }
 
-    async logout(userId) {
+    async logout(userId ) {
         try {
             // Clear any existing sessions for this user
             await prisma.session.deleteMany({
@@ -293,6 +293,15 @@ class Auth {
                     userId: userId
                 }
             });
+
+            // Blacklist the token  
+             await prisma.tokenBlacklist.create({ 
+                data: {
+                    userId: userId,
+                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), 
+                    jti : generateToken({ userId })
+                }
+             })
 
             logger.info('User logged out successfully', {
                 userId,

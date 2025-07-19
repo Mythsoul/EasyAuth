@@ -182,10 +182,10 @@ export const register = async (req, res) => {
 export const logout = async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     const auth = new AuthService.Auth({});
-    const result = await auth.logout(userId);
-    
+    const result = await auth.logout(userId );
+
     if (!result.success) {
       return res.status(400).json({
         success: false,

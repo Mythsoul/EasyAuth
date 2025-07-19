@@ -3,7 +3,7 @@ import { logger } from '../utils/logger.js';
 
 // Create Prisma client with better configuration
 export const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+  log: ['error'], // Only show errors, no query logs
   datasources: {
     db: {
       url: process.env.DATABASE_URL
@@ -12,8 +12,8 @@ export const prisma = new PrismaClient({
   // Connection pool configuration
   __internal: {
     engine: {
-      connectTimeout: 60000, // 60 seconds
-      poolTimeout: 60000,    // 60 seconds
+      connectTimeout: 60000, 
+      poolTimeout: 60000,    
     }
   }
 });
@@ -83,7 +83,6 @@ function setupConnectionMonitoring() {
   process.healthCheckInterval = healthCheckInterval;
 }
 
-// Graceful shutdown with proper cleanup
 async function gracefulShutdown(signal) {
   logger.info(`Received ${signal}, starting graceful database shutdown...`);
   
@@ -93,7 +92,6 @@ async function gracefulShutdown(signal) {
       globalThis.clearInterval(process.healthCheckInterval);
     }
     
-    // Close database connection
     if (isConnected) {
       await prisma.$disconnect();
       isConnected = false;
@@ -120,7 +118,6 @@ process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Nodemon restart
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit immediately, just log the error
 });
 
 // Export connection status checker
