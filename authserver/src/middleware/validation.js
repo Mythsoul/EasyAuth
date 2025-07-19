@@ -121,6 +121,9 @@ export const authSchemas = {
       'string.max': 'Username must not exceed 30 characters',
     'string.alphanum': 'Username can only contain letters and numbers'
     }),
+    emailConfig: Joi.object({
+      sendVerificationEmail: Joi.boolean().optional(),
+    }).optional()
   }),
   login: Joi.object({
     email: customEmailSchema.required().messages({

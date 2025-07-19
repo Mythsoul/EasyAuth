@@ -62,15 +62,6 @@ class Auth {
             let shouldSendEmail = false;
             
             if (emailConfig && emailConfig.sendVerificationEmail) {
-                // Validate client email configuration
-                const configValidation = MailHelper.validateClientEmailConfig(emailConfig);
-                if (!configValidation.valid) {
-                    return {
-                        success: false,
-                        message: configValidation.message
-                    };
-                }
-                
                 emailVerifyToken = MailHelper.generateVerificationToken();
                 shouldSendEmail = true;
             }
@@ -85,7 +76,7 @@ class Auth {
                     role: 'USER',
                     emailVerifyToken: emailVerifyToken,
                     emailVerifyTokenExpiresAt: shouldSendEmail ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null, // 24 hours
-                    emailVerified: !shouldSendEmail // If not sending email, consider it verified by default
+                    emailVerified: !shouldSendEmail 
                 },
                 select: {
                     id: true,
@@ -127,7 +118,6 @@ class Auth {
             let emailResult = null;
             if (shouldSendEmail) {
                 emailResult = await MailHelper.sendVerificationEmail(
-                    emailConfig,
                     user.email,
                     user.emailVerifyToken,
                     applicationUrl
