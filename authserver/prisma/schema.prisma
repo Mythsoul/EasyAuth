@@ -86,6 +86,20 @@ model Session {
   @@map("sessions")
 }
 
+model TokenBlacklist {
+  id        String   @id @default(cuid())
+  jti       String   @unique // JWT ID (unique identifier for the token)
+  userId    String
+  expiresAt DateTime // When the blacklisted token expires
+  reason    String?  // Optional reason for blacklisting (password_reset, logout_all, etc.)
+  createdAt DateTime @default(now())
+
+  // Optimized indexes for fast blacklist lookups
+  @@index([userId, expiresAt]) // For user-wide blacklist queries
+  @@index([expiresAt]) // For cleanup operations
+  @@map("token_blacklist")
+}
+
 enum Role {
   USER
   ADMIN
