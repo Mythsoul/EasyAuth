@@ -15,10 +15,18 @@ class Auth {
         try {
             const { email, password, username, applicationUrl, emailConfig } = this.formData;
 
-            if (!email || !password || !applicationUrl) {
+            if (!email || !applicationUrl) {
                 return {
                     success: false,
-                    message: 'Email, password, and application URL are required'
+                    message: 'Email and application URL are required'
+                };
+            }
+            
+            // Password is required for regular registration (not OAuth)
+            if (!password) {
+                return {
+                    success: false,
+                    message: 'Password is required for registration'
                 };
             }
 
@@ -197,6 +205,15 @@ class Auth {
                 return {
                     success: false,
                     message: 'Account is deactivated'
+                };
+            }
+
+            // Check if user has a password (regular login) or is OAuth user
+            if (!user.password) {
+                return {
+                    success: false,
+                    error: 'OAUTH_USER_LOGIN_REQUIRED',
+                    message: 'This account uses OAuth login. Please use your OAuth provider to sign in.'
                 };
             }
 
