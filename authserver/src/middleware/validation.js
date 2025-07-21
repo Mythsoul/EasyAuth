@@ -101,6 +101,64 @@ export const validate = (schema) => {
   };
 };
 
+export const validateQuery = (schema) => {
+  return async (req, res, next) => {
+    try {
+      const value = await schema.validateAsync(req.query, {
+        abortEarly: false,
+        stripUnknown: true
+      });
+      req.query = value;
+      next();
+    } catch (error) {
+      let errorDetails;
+      
+      // Handle external validation errors differently
+      if (error.name === 'ValidationError' && error.details) {
+        errorDetails = error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }));
+      } else if (error.message && error.message.includes('external')) {
+        // Handle external validation errors with custom messages
+        const errorType = error.message.match(/"(.*?)"/)?.[1] || 'validation';
+        const customMessages = {
+          'email.disposable': 'Disposable email addresses are not allowed',
+          'email.domain.notfound': 'Email domain does not exist', 
+          'email.domain.invalid': 'Email domain is not valid',
+          'string.email': 'Please provide a valid email address'
+        };
+        
+        errorDetails = [{
+          field: 'email',
+          message: customMessages[errorType] || 'Email validation failed'
+        }];
+      } else {
+        // Fallback for other errors
+        errorDetails = [{
+          field: 'unknown',
+          message: error.message || 'Validation failed'
+        }];
+      }
+
+      logger.warn('Validation error', {
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+        errors: errorDetails,
+        applicationUrl: req.applicationUrl
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Invalid input data',
+        details: errorDetails
+      });
+    }
+  };
+};
+
 // Validation schemas
 export const authSchemas = {
   register: Joi.object({
@@ -124,6 +182,13 @@ export const authSchemas = {
     emailConfig: Joi.object({
       sendVerificationEmail: Joi.boolean().optional(),
     }).optional()
+  }),
+
+  oauthRedirect: Joi.object({
+    redirectUrl: Joi.string().uri().required().messages({
+      'any.required': 'Redirect URL is required',
+      'string.uri': 'Redirect URL must be a valid URI'
+    })
   }),
   login: Joi.object({
     email: customEmailSchema.required().messages({

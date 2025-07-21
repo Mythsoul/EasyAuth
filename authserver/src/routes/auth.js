@@ -5,6 +5,9 @@ import { authenticateToken } from "../middleware/authMiddleware.js";
 import { validate, authSchemas } from "../middleware/validation.js";
 import { authRateLimit, loginRateLimit } from "../middleware/rateLimiter.js";
 import { getOAuthTokens, createOrUpdateUserFromOAuth, generateJwt, fetchUserDataFromProvider } from "../helpers/oauthHelper.js";
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const router = express.Router(); 
 
@@ -188,5 +191,110 @@ router.post('/auth/verify-token', authenticateToken, (req, res) => {
 });
 
 router.post('/auth/logout', authenticateToken, logout);
+
+// OAuth provider management routes
+router.get('/auth/oauth-providers', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        oauthProviders: {
+          select: {
+            provider: true,
+            providerId: true,
+            id: true
+          }
+        }
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'User not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        providers: user.oauthProviders,
+        hasPassword: !!user.password
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to fetch OAuth providers'
+    });
+  }
+});
+
+router.delete('/auth/oauth-providers/:providerId', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { providerId } = req.params;
+    
+    // Check if user has password or other OAuth providers
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        oauthProviders: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'User not found'
+      });
+    }
+    
+    // Prevent user from removing their only authentication method
+    if (!user.password && user.oauthProviders.length <= 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'CANNOT_REMOVE_LAST_AUTH_METHOD',
+        message: 'Cannot remove your only authentication method. Set a password first or link another OAuth provider.'
+      });
+    }
+    
+    // Find and remove the OAuth provider
+    const oauthProvider = await prisma.oAuthProvider.findFirst({
+      where: {
+        id: providerId,
+        userId: userId
+      }
+    });
+    
+    if (!oauthProvider) {
+      return res.status(404).json({
+        success: false,
+        error: 'PROVIDER_NOT_FOUND',
+        message: 'OAuth provider not found'
+      });
+    }
+    
+    await prisma.oAuthProvider.delete({
+      where: { id: providerId }
+    });
+    
+    res.json({
+      success: true,
+      message: `${oauthProvider.provider} provider unlinked successfully`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to unlink OAuth provider'
+    });
+  }
+});
 
 export const authRoutes = router;
