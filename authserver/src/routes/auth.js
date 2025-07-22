@@ -234,6 +234,171 @@ router.get('/auth/oauth-providers', authenticateToken, async (req, res) => {
   }
 });
 
+// Link additional OAuth provider to existing account
+router.get('/auth/oauth/link/:provider', authRateLimit, authenticateToken, async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const { redirectUrl } = req.query;
+    const userId = req.user.userId;
+    
+    if (!redirectUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'REDIRECT_URL_REQUIRED',
+        message: 'redirectUrl parameter is required'
+      });
+    }
+
+    // Get user's application URL from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { applicationUrl: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'User not found'
+      });
+    }
+
+    const applicationUrl = user.applicationUrl;
+
+    // Validate that redirectUrl belongs to the same origin as applicationUrl
+    try {
+      const appOrigin = new URL(applicationUrl).origin;
+      const redirectOrigin = new URL(redirectUrl).origin;
+      
+      if (appOrigin !== redirectOrigin) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_REDIRECT_URL',
+          message: 'Redirect URL must belong to the same origin as your application'
+        });
+      }
+    } catch (urlError) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_URL_FORMAT',
+        message: 'Invalid URL format in redirectUrl parameter'
+      });
+    }
+
+    const callbackUrl = `${process.env.SERVER_URL}/oauth/callback/link/${provider}`;
+    const state = Buffer.from(JSON.stringify({ 
+      applicationUrl, 
+      redirectUrl, 
+      userId,
+      linkMode: true 
+    })).toString('base64');
+
+    let oauthUrl;
+
+    switch (provider) {
+      case 'google':
+        oauthUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=email%20profile&access_type=offline&state=${encodeURIComponent(state)}`;
+        break;
+      case 'github':
+        oauthUrl = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=user:email&state=${encodeURIComponent(state)}`;
+        break;
+      case 'facebook':
+        oauthUrl = `https://www.facebook.com/v9.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=email&state=${encodeURIComponent(state)}`;
+        break;
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          error: 'UNSUPPORTED_PROVIDER',
+          message: 'Unsupported OAuth provider. Supported providers: google, github, facebook' 
+        });
+    }
+
+    res.redirect(oauthUrl);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'OAUTH_LINK_INITIATION_ERROR',
+      message: 'Failed to initiate OAuth linking flow'
+    });
+  }
+});
+
+// OAuth linking callback
+router.get('/oauth/callback/link/:provider', async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const { code, state, error } = req.query;
+
+    // Handle OAuth provider errors
+    if (error) {
+      const errorMessage = req.query.error_description || error;
+      return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=${encodeURIComponent(errorMessage)}`);
+    }
+
+    if (!code || !state) {
+      return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=Missing%20authorization%20code%20or%20state`);
+    }
+
+    // Decode state parameter
+    let stateData;
+    try {
+      stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    } catch {
+      return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=Invalid%20state%20parameter`);
+    }
+
+    const { applicationUrl, redirectUrl, userId, linkMode } = stateData;
+
+    if (!linkMode || !userId) {
+      return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=Invalid%20linking%20state`);
+    }
+
+    const tokens = await getOAuthTokens(provider, code);
+    const oauthData = await fetchUserDataFromProvider(provider, tokens);
+    const providerId = oauthData.id.toString();
+
+    // Check if this OAuth account is already linked to another user
+    const existingProvider = await prisma.oAuthProvider.findUnique({
+      where: {
+        provider_providerId: {
+          provider,
+          providerId
+        }
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (existingProvider) {
+      if (existingProvider.userId === userId) {
+        // Already linked to this user
+        const separator = redirectUrl.includes('?') ? '&' : '?';
+        return res.redirect(`${redirectUrl}${separator}linked=already&provider=${provider}`);
+      } else {
+        // Linked to different user
+        return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=This%20${provider}%20account%20is%20already%20linked%20to%20another%20user`);
+      }
+    }
+
+    // Link the OAuth provider to the user
+    await prisma.oAuthProvider.create({
+      data: {
+        provider,
+        providerId,
+        userId
+      }
+    });
+
+    // Redirect back to client application with success
+    const separator = redirectUrl.includes('?') ? '&' : '?';
+    res.redirect(`${redirectUrl}${separator}linked=success&provider=${provider}`);
+  } catch (error) {
+    console.error('OAuth linking callback error:', error);
+    res.redirect(`${process.env.SERVER_URL}/oauth/error?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
 router.delete('/auth/oauth-providers/:providerId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.user;

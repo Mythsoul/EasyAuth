@@ -56,29 +56,52 @@ export async function getOAuthTokens(provider, code) {
 
 export async function fetchUserDataFromProvider(provider, tokens) {
   try {
-    let userApiUrl;
-    let headers = {};
+    let userData;
+    let headers = { Authorization: `Bearer ${tokens.access_token}` };
 
     switch (provider) {
       case 'google':
-        userApiUrl = 'https://www.googleapis.com/oauth2/v2/userinfo';
-        headers = { Authorization: `Bearer ${tokens.access_token}` };
+        const googleResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers });
+        if (!googleResponse.ok) throw new Error('Failed to fetch Google user data');
+        userData = await googleResponse.json();
         break;
+        
       case 'github':
-        userApiUrl = 'https://api.github.com/user';
-        headers = { Authorization: `Bearer ${tokens.access_token}` };
+        // Fetch user profile
+        const githubUserResponse = await fetch('https://api.github.com/user', { headers });
+        if (!githubUserResponse.ok) throw new Error('Failed to fetch GitHub user data');
+        const githubUser = await githubUserResponse.json();
+        
+        // If email is private, fetch from emails API
+        if (!githubUser.email) {
+          const emailsResponse = await fetch('https://api.github.com/user/emails', { headers });
+          if (emailsResponse.ok) {
+            const emails = await emailsResponse.json();
+            const primaryEmail = emails.find(email => email.primary && email.verified);
+            if (primaryEmail) {
+              githubUser.email = primaryEmail.email;
+            }
+          }
+        }
+        
+        userData = githubUser;
         break;
+        
       case 'facebook':
-        userApiUrl = `https://graph.facebook.com/me?fields=id,name,email&access_token=${tokens.access_token}`;
+        const facebookResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${tokens.access_token}`);
+        if (!facebookResponse.ok) throw new Error('Failed to fetch Facebook user data');
+        userData = await facebookResponse.json();
         break;
+        
       default:
         throw new Error('Invalid provider');
     }
 
-    const response = await fetch(userApiUrl, { headers });
-    if (!response.ok) throw new Error('Failed to fetch user data');
+    if (!userData.email) {
+      throw new Error(`No email address available from ${provider}. Please ensure your ${provider} account has a verified email address.`);
+    }
 
-    return await response.json();
+    return userData;
   } catch (error) {
     throw new Error(`Error fetching user data from ${provider}: ${error.message}`);
   }
