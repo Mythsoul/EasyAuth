@@ -8,7 +8,12 @@ Connect to any authentication SDK with just a few lines of code. (Also has a bui
 - 🔐 **Complete Authentication** - Login, register, logout with JWT tokens
 - 📧 **Email Verification** - Built-in email verification system
 - 🔄 **Password Reset** - Server-handled forgot password functionality
+- 🔗 **OAuth Integration** - Google, GitHub, and Facebook OAuth support
+- 🏢 **Multi-Tenant** - Support for multiple client applications
 - 🔒 **Production Ready** - Built with security and performance in mind
+- 🛡️ **Security First** - Rate limiting, CORS, token blacklisting
+- 📱 **Provider Management** - Link/unlink OAuth providers
+- 🚀 **Firebase-Style** - Similar OAuth flow to Firebase Auth
 
           **And Many More...**
 
