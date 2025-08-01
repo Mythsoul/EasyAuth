@@ -7,6 +7,39 @@ const prisma = new PrismaClient();
 
 export async function getOAuthTokens(provider, code) {
   try {
+    if (provider === 'github') {
+      const response = await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'EasyAuth/1.0'
+        },
+        body: new URLSearchParams({
+          client_id: process.env.GITHUB_CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET,
+          code: code,
+          redirect_uri: `${process.env.SERVER_URL}/oauth/callback/github`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('GitHub authentication failed');
+      }
+
+      const githubToken = await response.json();
+      
+      // Generate our own token format
+      return {
+        access_token: githubToken.access_token,
+        token_type: 'Bearer',
+        expires_in: parseInt(process.env.JWT_EXPIRES_IN) || 3600,
+        provider: 'github',
+        scope: githubToken.scope
+      };
+    }
+
+    // Handle other providers
     const oauthConfig = {
       google: {
         tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -15,14 +48,6 @@ export async function getOAuthTokens(provider, code) {
           client_secret: process.env.GOOGLE_CLIENT_SECRET,
           redirect_uri: `${process.env.SERVER_URL}/oauth/callback/google`,
           grant_type: 'authorization_code',
-        },
-      },
-      github: {
-        tokenUrl: 'https://github.com/login/oauth/access_token',
-        params: {
-          client_id: process.env.GITHUB_CLIENT_ID,
-          client_secret: process.env.GITHUB_CLIENT_SECRET,
-          redirect_uri: `${process.env.SERVER_URL}/oauth/callback/github`,
         },
       },
       facebook: {
@@ -46,9 +71,12 @@ export async function getOAuthTokens(provider, code) {
       },
       body: new URLSearchParams({ ...config.params, code }),
     });
-    if (!response.ok) throw new Error('Token request failed');
+    
+    if (!response.ok) throw new Error(`${provider} authentication failed`);
 
-    return await response.json();
+    const tokens = await response.json();
+    tokens.provider = provider;
+    return tokens;
   } catch (error) {
     throw new Error(`Error getting OAuth tokens: ${error.message}`);
   }
@@ -134,6 +162,7 @@ export async function createOrUpdateUserFromOAuth(provider, oauthData, applicati
           username,
           applicationUrl,
           emailVerified: true, // OAuth users are pre-verified
+          password : uuidv4(), 
           oauthProviders: {
             create: {
               provider,

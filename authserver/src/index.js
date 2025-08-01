@@ -9,6 +9,7 @@ import { validateEnvConfig } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { globalRateLimit } from './middleware/rateLimiter.js';
 import { cleanupScheduler } from './services/cleanupScheduler.js';
+import { oauthRoutes } from './routes/oauth.js';
 
 // Load environment variables
 dotenv.config();
@@ -117,7 +118,7 @@ app.get('/health', async (req, res) => {
 // API routes
 const apiPrefix ='/api/v1';
 app.use(`${apiPrefix}/`, authRoutes);
-
+app.use(`${apiPrefix}/`,oauthRoutes );
 // 404 handler
 app.use('*', notFoundHandler);
 
