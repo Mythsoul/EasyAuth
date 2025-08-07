@@ -1,17 +1,21 @@
 # Easy Auth Server 
 
-### A simple , and powerful authentication server for Devlopers.
+### A simple, powerful authentication server for developers.
 
 Connect to any authentication SDK with just a few lines of code. (Also has a built-in SDK for easy integration) 
 
 ## Features 
 - 🔐 **Complete Authentication** - Login, register, logout with JWT tokens
-- 📧 **Email Verification** - Built-in email verification system
+- 🌐 **OAuth Integration** - Google, GitHub, and Facebook OAuth with provider linking
+- 📧 **Email Verification** - Built-in email verification system with HTML templates
 - 🔄 **Password Reset** - Server-handled forgot password functionality
-- 🔗 **OAuth Integration** - Google, GitHub, and Facebook OAuth support
-- 🏢 **Multi-Tenant** - Support for multiple client applications
+- 🔗 **Provider Linking** - Link multiple OAuth providers to single accounts
+- 🏢 **Multi-Tenant Support** - Same OAuth accounts across different applications
 - 🔒 **Production Ready** - Built with security and performance in mind
-- 🛡️ **Security First** - Rate limiting, CORS, token blacklisting
+- 🛡️ **Security First** - Rate limiting, CORS, token blacklisting, CSRF protection
+- ⚡ **High Performance** - Optimized database queries, connection pooling
+- 🔍 **Comprehensive Testing** - Unit and integration tests for all components
+- 📊 **Monitoring Ready** - Structured logging, health checks, metrics
 
           **And Many More...**
 
