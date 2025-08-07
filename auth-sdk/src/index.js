@@ -3,7 +3,7 @@ import { sessionManager } from './session.js';
 
 // Default configuration for the EasyAuth server
 const DEFAULT_CONFIG = {
-  baseURL: 'https://easyauth-server.vercel.app/api/v1',
+  baseURL: 'https://easyauth-server.vercel.app/api/v1', // Default server 
   withCredentials: true,
   timeout: 10000, // 10 seconds
   tokenCookies: {
@@ -88,8 +88,13 @@ export function resetConfig() {
 initializeClient();
 
 // Token storage helpers - using secure cookies
-const TOKEN_COOKIE = 'easyauth_access_token';
-const REFRESH_TOKEN_COOKIE = 'easyauth_refresh_token';
+function getTokenCookieName() {
+  return config.tokenCookies?.access || 'easyauth_access_token';
+}
+
+function getRefreshTokenCookieName() {
+  return config.tokenCookies?.refresh || 'easyauth_refresh_token';
+}
 
 // Helper function to get cookie by name
 function getCookie(name) {
@@ -135,28 +140,32 @@ function deleteCookie(name) {
 
 // Helper function to get access token from cookie
 function getAccessToken() {
-  return getCookie(TOKEN_COOKIE);
+  return getCookie(getTokenCookieName());
 }
 
 // Helper function to get refresh token from cookie
 function getRefreshToken() {
-  return getCookie(REFRESH_TOKEN_COOKIE);
+  return getCookie(getRefreshTokenCookieName());
 }
 
 // Helper function to set tokens in cookies
 function setTokens(accessToken, refreshToken) {
   if (typeof window === 'undefined') return;
   
-  // Set access token with 15 minute expiration
-  setCookie(TOKEN_COOKIE, accessToken, {
-    maxAge: 15 * 60, // 15 minutes
+  // Use configured expiry times
+  const accessMaxAge = config.tokenExpiry?.access || 15 * 60;
+  const refreshMaxAge = config.tokenExpiry?.refresh || 7 * 24 * 60 * 60;
+  
+  // Set access token with configured expiration
+  setCookie(getTokenCookieName(), accessToken, {
+    maxAge: accessMaxAge,
     secure: window.location.protocol === 'https:',
     sameSite: 'lax'
   });
   
   if (refreshToken) {
-    setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
-      maxAge: 7 * 24 * 60 * 60, 
+    setCookie(getRefreshTokenCookieName(), refreshToken, {
+      maxAge: refreshMaxAge,
       secure: window.location.protocol === 'https:',
       sameSite: 'lax'
     });
@@ -166,8 +175,8 @@ function setTokens(accessToken, refreshToken) {
 // Helper function to clear tokens from cookies
 function clearTokens() {
   if (typeof window === 'undefined') return;
-  deleteCookie(TOKEN_COOKIE);
-  deleteCookie(REFRESH_TOKEN_COOKIE);
+  deleteCookie(getTokenCookieName());
+  deleteCookie(getRefreshTokenCookieName());
 }
 
 // Helper function to refresh access token
@@ -493,6 +502,32 @@ export async function resendVerificationEmail(email, applicationUrl = '', emailC
   }
 }
 
+// Email verification function
+export async function verifyEmail(token) {
+  try {
+    const response = await client.post('/auth/verify-email', { token });
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data.error || 'VERIFY_EMAIL_FAILED',
+        message: response.data.message || 'Email verification failed'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error || 'NETWORK_ERROR',
+      message: error.response?.data?.message || 'Email verification failed'
+    };
+  }
+}
+
 // Forgot password function
 export async function forgotPassword(email, applicationUrl = '') {
   try {
@@ -536,6 +571,223 @@ export function debugTokens() {
     hasRefreshToken: !!refreshToken,
     isAuthenticated: isAuth
   };
+}
+
+// OAuth authentication methods
+export async function signInWithOAuth(provider, redirectPath = '', applicationUrl = '') {
+  try {
+    const finalApplicationUrl = applicationUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+    
+    // Build OAuth URL with optional redirectPath
+    let oauthUrl = `${config.baseURL}/auth/oauth/${provider}`;
+    if (redirectPath) {
+      // The server will handle relative paths automatically
+      oauthUrl += `?redirectUrl=${encodeURIComponent(redirectPath)}`;
+    }
+    
+    // For client-side usage, redirect to OAuth URL
+    if (typeof window !== 'undefined') {
+      window.location.href = oauthUrl;
+      return {
+        success: true,
+        message: 'Redirecting to OAuth provider...'
+      };
+    } else {
+      // For server-side usage, return the URL
+      return {
+        success: true,
+        oauthUrl,
+        message: 'OAuth URL generated successfully'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'OAUTH_INITIATION_ERROR',
+      message: error.message || 'Failed to initiate OAuth flow'
+    };
+  }
+}
+
+// Handle OAuth callback (extract token from URL)
+export function handleOAuthCallback() {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'NOT_BROWSER_ENVIRONMENT' };
+  }
+  
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const provider = urlParams.get('provider');
+    const error = urlParams.get('error');
+    
+    if (error) {
+      return {
+        success: false,
+        error: 'OAUTH_ERROR',
+        message: decodeURIComponent(error)
+      };
+    }
+    
+    if (token) {
+      // Store the token and create a session
+      setTokens(token, null); // OAuth doesn't provide refresh token in callback
+      
+      // Clean up the URL
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      return {
+        success: true,
+        provider,
+        message: 'OAuth authentication successful'
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'NO_TOKEN',
+      message: 'No authentication token found in callback'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'CALLBACK_PARSE_ERROR',
+      message: error.message || 'Failed to parse OAuth callback'
+    };
+  }
+}
+
+// Get linked OAuth providers
+export async function getLinkedProviders() {
+  try {
+    const response = await client.get('/auth/oauth-providers');
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data.error || 'FETCH_PROVIDERS_FAILED',
+        message: response.data.message || 'Failed to fetch OAuth providers'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error || 'NETWORK_ERROR',
+      message: error.response?.data?.message || 'Failed to fetch OAuth providers'
+    };
+  }
+}
+
+// Link a new OAuth provider
+export async function linkOAuthProvider(provider, redirectPath = '') {
+  try {
+    if (typeof window !== 'undefined') {
+      let linkUrl = `${config.baseURL}/auth/oauth/link/${provider}`;
+      if (redirectPath) {
+        // The server will handle relative paths automatically
+        linkUrl += `?redirectUrl=${encodeURIComponent(redirectPath)}`;
+      }
+      
+      window.location.href = linkUrl;
+      
+      return {
+        success: true,
+        message: 'Redirecting to link OAuth provider...'
+      };
+    } else {
+      return {
+        success: false,
+        error: 'NOT_BROWSER_ENVIRONMENT',
+        message: 'OAuth linking requires browser environment'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'OAUTH_LINK_ERROR',
+      message: error.message || 'Failed to initiate OAuth linking'
+    };
+  }
+}
+
+// Unlink an OAuth provider
+export async function unlinkOAuthProvider(providerId) {
+  try {
+    const response = await client.delete(`/auth/oauth-providers/${providerId}`);
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        message: response.data.message
+      };
+    } else {
+      return {
+        success: false,
+        error: response.data.error || 'UNLINK_FAILED',
+        message: response.data.message || 'Failed to unlink OAuth provider'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.error || 'NETWORK_ERROR',
+      message: error.response?.data?.message || 'Failed to unlink OAuth provider'
+    };
+  }
+}
+
+// Handle OAuth linking callback
+export function handleOAuthLinkCallback() {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'NOT_BROWSER_ENVIRONMENT' };
+  }
+  
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const linked = urlParams.get('linked');
+    const provider = urlParams.get('provider');
+    const error = urlParams.get('error');
+    
+    if (error) {
+      return {
+        success: false,
+        error: 'OAUTH_LINK_ERROR',
+        message: decodeURIComponent(error)
+      };
+    }
+    
+    if (linked) {
+      // Clean up the URL
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      return {
+        success: true,
+        linked: linked === 'success',
+        already: linked === 'already',
+        provider,
+        message: linked === 'success' ? 'OAuth provider linked successfully' : 'OAuth provider was already linked'
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'NO_LINK_STATUS',
+      message: 'No linking status found in callback'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'CALLBACK_PARSE_ERROR',
+      message: error.message || 'Failed to parse OAuth linking callback'
+    };
+  }
 }
 
 export const login = signIn;

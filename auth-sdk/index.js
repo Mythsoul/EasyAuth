@@ -17,6 +17,14 @@ export {
   configure,
   getConfig,
   resetConfig,
+  
+  // OAuth functions
+  signInWithOAuth,
+  handleOAuthCallback,
+  handleOAuthLinkCallback,
+  getLinkedProviders,
+  linkOAuthProvider,
+  unlinkOAuthProvider,
  
   sessionManager,
   events
