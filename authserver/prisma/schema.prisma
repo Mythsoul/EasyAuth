@@ -70,7 +70,9 @@ model OAuthProvider {
   userId     String
   user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([provider, providerId])
+  // Allow same OAuth provider to be used across different applications
+  // but prevent duplicate providers for the same user
+  @@unique([provider, userId])
   @@map("oauth_providers")
 }
 

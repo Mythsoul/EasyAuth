@@ -141,6 +141,39 @@ export async function createOrUpdateUserFromOAuth(provider, oauthData, applicati
     const providerId = oauthData.id.toString();
     const username = oauthData.name || oauthData.login || oauthData.email?.split('@')[0];
 
+    // First check if this OAuth provider is already linked to a user for this specific application
+    const existingOAuthProvider = await prisma.oAuthProvider.findFirst({
+      where: {
+        provider: provider,
+        providerId: providerId,
+        user: {
+          applicationUrl: applicationUrl
+        }
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (existingOAuthProvider) {
+      // This OAuth account is already linked to a user for this application
+      // Check if it's for the same email
+      if (existingOAuthProvider.user.email === email) {
+        // Same user, just update last login
+        const user = await prisma.user.update({
+          where: { id: existingOAuthProvider.user.id },
+          data: { lastLogin: new Date() },
+          include: {
+            oauthProviders: true
+          }
+        });
+        return user;
+      } else {
+        // Different user email but same OAuth account for this application - this shouldn't happen
+        throw new Error(`USER_ALREADY_EXISTS:This ${provider} account is already linked to a different user in this application`);
+      }
+    }
+
     // Find existing user by email and applicationUrl
     let user = await prisma.user.findUnique({
       where: {
@@ -175,7 +208,7 @@ export async function createOrUpdateUserFromOAuth(provider, oauthData, applicati
         }
       });
     } else {
-      // Check if OAuth provider is already linked
+      // Check if OAuth provider is already linked to this user
       const existingProvider = user.oauthProviders.find(p => p.provider === provider);
       
       if (!existingProvider) {
@@ -201,7 +234,7 @@ export async function createOrUpdateUserFromOAuth(provider, oauthData, applicati
 
     return user;
   } catch (error) {
-    throw new Error(`Error creating/updating user: ${error.message}`);
+    throw error; // Re-throw to preserve the specific error
   }
 }
 

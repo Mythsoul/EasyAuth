@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { connectDatabase, prisma, getDatabaseStatus } from '../src/config/database.js';
 import { authRoutes } from '../src/routes/auth.js';
+import { oauthRoutes } from '../src/routes/oauth.js';
 import { logger } from '../src/utils/logger.js';
 import { validateEnvConfig } from '../src/config/env.js';
 import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler.js';
@@ -120,6 +121,7 @@ app.get('/health', async (req, res) => {
 // API routes
 const apiPrefix = '/api/v1';
 app.use(`${apiPrefix}/`, authRoutes);
+app.use(`${apiPrefix}/`, oauthRoutes);
 
 // 404 handler
 app.use('*', notFoundHandler);

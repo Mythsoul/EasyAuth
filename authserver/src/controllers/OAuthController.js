@@ -11,35 +11,42 @@ export const initiateOAuth = async (req, res) => {
     const { redirectUrl } = req.query;
     const applicationUrl = req.applicationUrl;
     
-    if (!redirectUrl) {
-      return res.status(400).json({
-        success: false,
-        error: 'REDIRECT_URL_REQUIRED',
-        message: 'redirectUrl parameter is required'
-      });
-    }
-
-    try {
-      const appOrigin = new URL(applicationUrl).origin;
-      const redirectOrigin = new URL(redirectUrl).origin;
-      
-      if (appOrigin !== redirectOrigin) {
-        return res.status(400).json({
-          success: false,
-          error: 'INVALID_REDIRECT_URL',
-          message: 'Redirect URL must belong to the same origin as the requesting application'
-        });
+    // Build final redirect URL
+    let finalRedirectUrl;
+    if (redirectUrl) {
+      // If redirectUrl starts with '/', treat it as a relative path
+      if (redirectUrl.startsWith('/')) {
+        const appOrigin = new URL(applicationUrl).origin;
+        finalRedirectUrl = appOrigin + redirectUrl;
+      } else {
+        // If it's a full URL, validate it belongs to same origin
+        try {
+          const appOrigin = new URL(applicationUrl).origin;
+          const redirectOrigin = new URL(redirectUrl).origin;
+          
+          if (appOrigin !== redirectOrigin) {
+            return res.status(400).json({
+              success: false,
+              error: 'INVALID_REDIRECT_URL',
+              message: 'Redirect URL must belong to the same origin as the requesting application'
+            });
+          }
+          finalRedirectUrl = redirectUrl;
+        } catch (urlError) {
+          return res.status(400).json({
+            success: false,
+            error: 'INVALID_URL_FORMAT',
+            message: 'Invalid URL format in redirectUrl parameter'
+          });
+        }
       }
-    } catch (urlError) {
-      return res.status(400).json({
-        success: false,
-        error: 'INVALID_URL_FORMAT',
-        message: 'Invalid URL format in redirectUrl parameter'
-      });
+    } else {
+      // Default to application URL if no redirect URL provided
+      finalRedirectUrl = applicationUrl;
     }
 
     const callbackUrl = `${process.env.SERVER_URL}/oauth/callback/${provider}`;
-    const state = Buffer.from(JSON.stringify({ applicationUrl, redirectUrl })).toString('base64');
+    const state = Buffer.from(JSON.stringify({ applicationUrl, redirectUrl: finalRedirectUrl })).toString('base64');
 
     let oauthUrl;
 
@@ -115,22 +122,40 @@ export const handleOAuthCallback = async (req, res) => {
 
     const { applicationUrl, redirectUrl } = stateData;
 
-    const tokens = await getOAuthTokens(provider, code);
-    const oauthData = await fetchUserDataFromProvider(provider, tokens);
-    const user = await createOrUpdateUserFromOAuth(provider, oauthData, applicationUrl);
-    const jwtToken = generateJwt(user);
+    try {
+      const tokens = await getOAuthTokens(provider, code);
+      const oauthData = await fetchUserDataFromProvider(provider, tokens);
+      const user = await createOrUpdateUserFromOAuth(provider, oauthData, applicationUrl);
+      const jwtToken = generateJwt(user);
 
-    logger.info('OAuth authentication successful', {
-      provider,
-      userId: user.id,
-      email: user.email,
-      applicationUrl,
-      ip: req.ip
-    });
+      logger.info('OAuth authentication successful', {
+        provider,
+        userId: user.id,
+        email: user.email,
+        applicationUrl,
+        ip: req.ip
+      });
 
-    // Redirect back to client application with token
-    const separator = redirectUrl.includes('?') ? '&' : '?';
-    res.redirect(`${redirectUrl}${separator}token=${jwtToken}&provider=${provider}`);
+      // Redirect back to client application with token
+      const separator = redirectUrl.includes('?') ? '&' : '?';
+      res.redirect(`${redirectUrl}${separator}token=${jwtToken}&provider=${provider}`);
+    } catch (authError) {
+      logger.error('OAuth callback error', {
+        error: authError.message,
+        stack: authError.stack,
+        provider: req.params.provider,
+        ip: req.ip
+      });
+      
+      // Handle specific user already exists error
+      if (authError.message.startsWith('USER_ALREADY_EXISTS:')) {
+        const errorMessage = authError.message.replace('USER_ALREADY_EXISTS:', '');
+        const separator = redirectUrl.includes('?') ? '&' : '?';
+        res.redirect(`${redirectUrl}${separator}success=false&error=user_already_exists&message=${encodeURIComponent(errorMessage)}`);
+      } else {
+        res.redirect(`${process.env.SERVER_URL}/oauth/error?error=${encodeURIComponent(authError.message)}`);
+      }
+    }
   } catch (error) {
     logger.error('OAuth callback error', {
       error: error.message,
@@ -372,12 +397,13 @@ export const handleLinkCallback = async (req, res) => {
     const oauthData = await fetchUserDataFromProvider(provider, tokens);
     const providerId = oauthData.id.toString();
 
-    // Check if this OAuth account is already linked to another user
-    const existingProvider = await prisma.oAuthProvider.findUnique({
+    // Check if this OAuth account is already linked to another user in this application
+    const existingProvider = await prisma.oAuthProvider.findFirst({
       where: {
-        provider_providerId: {
-          provider,
-          providerId
+        provider: provider,
+        providerId: providerId,
+        user: {
+          applicationUrl: applicationUrl
         }
       },
       include: {
@@ -396,14 +422,15 @@ export const handleLinkCallback = async (req, res) => {
         const separator = redirectUrl.includes('?') ? '&' : '?';
         return res.redirect(`${redirectUrl}${separator}linked=already&provider=${provider}`);
       } else {
-        // Linked to different user
-        logger.warn('OAuth provider already linked to different user', {
+        // Linked to different user in this application
+        logger.warn('OAuth provider already linked to different user in this application', {
           provider,
           requestedUserId: userId,
           existingUserId: existingProvider.userId,
+          applicationUrl,
           ip: req.ip
         });
-        return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=This%20${provider}%20account%20is%20already%20linked%20to%20another%20user`);
+        return res.redirect(`${process.env.SERVER_URL}/oauth/error?error=This%20${provider}%20account%20is%20already%20linked%20to%20another%20user%20in%20this%20application`);
       }
     }
 
