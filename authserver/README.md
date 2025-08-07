@@ -12,15 +12,13 @@ Connect to any authentication SDK with just a few lines of code. (Also has a bui
 - 🏢 **Multi-Tenant** - Support for multiple client applications
 - 🔒 **Production Ready** - Built with security and performance in mind
 - 🛡️ **Security First** - Rate limiting, CORS, token blacklisting
-- 📱 **Provider Management** - Link/unlink OAuth providers
-- 🚀 **Firebase-Style** - Similar OAuth flow to Firebase Auth
 
           **And Many More...**
 
 
 
 ## For Complete Documentation 
-  please visit our [documentation site (coming soon)]().
+  please visit our [documentation site](https://easyauth-three.vercel.app/api).
 
 
 ## Contributing 

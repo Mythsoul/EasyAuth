@@ -12,6 +12,11 @@ export {
   getStoredAccessToken,
   getStoredRefreshToken,
   debugTokens,
+  
+  // Configuration functions
+  configure,
+  getConfig,
+  resetConfig,
  
   sessionManager,
   events

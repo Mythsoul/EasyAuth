@@ -63,3 +63,5 @@ docker*
 
 .env.ver*
 scripts
+
+index.html

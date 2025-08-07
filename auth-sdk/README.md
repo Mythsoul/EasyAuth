@@ -17,7 +17,7 @@ A simple, powerful authentication SDK for developers.
 npm install easy.auth98
 ```
 
-# Please Visit Our [Documentation (coming Soon)]() for more details.
+# Please Visit Our [Documentation](https://easyauth-three.vercel.app/sdk) for more details.
 
 ### Basic Authentication
 
@@ -146,8 +146,8 @@ import { signIn, signUp } from 'easy.auth98';
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
-| `signUp` | `email, password, username, applicationUrl?, emailConfig?` | `Promise<Result>` | Register a new user |
-| `signIn` | `email, password, applicationUrl?` | `Promise<Result>` | Authenticate user |
+| `signUp` | `email, password, username, emailConfig?` | `Promise<Result>` | Register a new user |
+| `signIn` | `email, password` | `Promise<Result>` | Authenticate user |
 | `signOut` | None | `Promise<Result>` | Log out current user |
 | `getSession` | None | `Promise<Session \| null>` | Get current session |
 | `verifyToken` | None | `Promise<Result>` | Verify current token |
@@ -156,8 +156,8 @@ import { signIn, signUp } from 'easy.auth98';
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
-| `resendVerificationEmail` | `email, applicationUrl?` | `Promise<Result>` | Resend verification email |
-| `forgotPassword` | `email, applicationUrl?` | `Promise<Result>` | Send password reset email |
+| `resendVerificationEmail` | `email` | `Promise<Result>` | Resend verification email |
+| `forgotPassword` | `email` | `Promise<Result>` | Send password reset email |
 
 ### Utility Functions
 

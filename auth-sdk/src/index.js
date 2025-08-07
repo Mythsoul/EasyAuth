@@ -1,8 +1,8 @@
 import axios from "axios"; 
 import { sessionManager } from './session.js';
 
-// Hardcoded configuration for the EasyAuth server
-const config = {
+// Default configuration for the EasyAuth server
+const DEFAULT_CONFIG = {
   baseURL: 'https://easyauth-server.vercel.app/api/v1',
   withCredentials: true,
   timeout: 10000, // 10 seconds
@@ -16,11 +16,76 @@ const config = {
   }
 };
 
-const client = axios.create({
-  baseURL: config.baseURL,
-  withCredentials: config.withCredentials,
-  timeout: config.timeout
-});
+// Global configuration that can be customized
+let config = { ...DEFAULT_CONFIG };
+let client = null;
+
+// Initialize the axios client with current config
+function initializeClient() {
+  client = axios.create({
+    baseURL: config.baseURL,
+    withCredentials: config.withCredentials,
+    timeout: config.timeout
+  });
+  
+  // Re-apply interceptors
+  setupInterceptors();
+}
+
+// Configuration function to set custom server
+export function configure(options = {}) {
+  // Merge with existing config
+  config = {
+    ...config,
+    ...options,
+    tokenCookies: {
+      ...config.tokenCookies,
+      ...options.tokenCookies
+    },
+    tokenExpiry: {
+      ...config.tokenExpiry,
+      ...options.tokenExpiry
+    }
+  };
+  
+  // Reinitialize client with new config
+  initializeClient();
+  
+  return {
+    success: true,
+    message: 'EasyAuth SDK configured successfully',
+    config: {
+      baseURL: config.baseURL,
+      timeout: config.timeout,
+      withCredentials: config.withCredentials
+    }
+  };
+}
+
+// Get current configuration
+export function getConfig() {
+  return {
+    baseURL: config.baseURL,
+    timeout: config.timeout,
+    withCredentials: config.withCredentials,
+    tokenCookies: { ...config.tokenCookies },
+    tokenExpiry: { ...config.tokenExpiry }
+  };
+}
+
+// Reset to default configuration
+export function resetConfig() {
+  config = { ...DEFAULT_CONFIG };
+  initializeClient();
+  
+  return {
+    success: true,
+    message: 'EasyAuth SDK reset to default configuration'
+  };
+}
+
+// Initialize with default config
+initializeClient();
 
 // Token storage helpers - using secure cookies
 const TOKEN_COOKIE = 'easyauth_access_token';
@@ -138,43 +203,52 @@ async function refreshAccessToken() {
   }
 }
 
-// Add request interceptor to include auth token
-client.interceptors.request.use(
-  (config) => {
-    const token = getAccessToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Add response interceptor to handle token refresh
-client.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const newToken = await refreshAccessToken();
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        return client(originalRequest);
-      } catch (refreshError) {
-        // Dispatch custom event for token refresh failure
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('token-refresh-failed', { detail: refreshError }));
-        }
-        return Promise.reject(refreshError);
+// Setup interceptors function
+function setupInterceptors() {
+  if (!client) return;
+  
+  // Clear existing interceptors
+  client.interceptors.request.clear();
+  client.interceptors.response.clear();
+  
+  // Add request interceptor to include auth token
+  client.interceptors.request.use(
+    (config) => {
+      const token = getAccessToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
+  // Add response interceptor to handle token refresh
+  client.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
+      
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        try {
+          const newToken = await refreshAccessToken();
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return client(originalRequest);
+        } catch (refreshError) {
+          // Dispatch custom event for token refresh failure
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('token-refresh-failed', { detail: refreshError }));
+          }
+          return Promise.reject(refreshError);
+        }
+      }
+      
+      return Promise.reject(error);
     }
-    
-    return Promise.reject(error);
-  }
-);
+  );
+}
 
 // Login function 
 export async function signIn(email, password, applicationUrl = '') {
